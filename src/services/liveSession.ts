@@ -1,11 +1,16 @@
 /**
  * LiveSession: High-level orchestrator connecting AudioStreamer, MicStreamer,
+ * VoiceAuthService (Turn-bound Multi-Sample Verification & Fail-Closed Tool Gate),
+ * ConversationMemoryService (Continuity, Persona VAD timing, Debounced Transcript Flush),
  * and the WebSocket bridge to Gemini Live.
  */
 
 import { AudioStreamer } from './audioStreamer.ts';
 import { MicStreamer } from './micStreamer.ts';
 import { backgroundLock } from './backgroundLockService.ts';
+import { mobileControl, VibrationStyle } from './mobileControlService.ts';
+import { voiceAuth } from './voiceAuthService.ts';
+import { conversationMemory, MahiPersonaMode } from './conversationMemoryService.ts';
 
 export type SessionState = 'disconnected' | 'connecting' | 'listening' | 'speaking';
 
@@ -68,6 +73,8 @@ export interface LiveSessionCallbacks {
   onShayari?: (shayari: ShayariEvent) => void;
   onMusicVibe?: (vibe: string) => void;
   onHologramToggle?: (enabled: boolean, color: string) => void;
+  onOpenMobileControl?: () => void;
+  onOpenVoiceAuthModal?: () => void;
 }
 
 export class LiveSession {
@@ -81,11 +88,34 @@ export class LiveSession {
   private pingTimer: any = null;
   private visualizerTimer: any = null;
 
+  // Reconnect & Continuity management
+  private userInitiatedDisconnect: boolean = true;
+  private reconnectAttempts: number = 0;
+  private reconnectTimer: any = null;
+
+  // Debounced transcript buffer & immediate flush state
+  private pendingTranscriptBuffer: string = '';
+  private pendingTranscriptSender: 'user' | 'mahi' = 'mahi';
+  private transcriptDebounceTimer: any = null;
+  private hasFlushedForCurrentResponse: boolean = false;
+
+  // VAD / Speech turn tracking
+  private lastUserSpeechAt: number = 0;
+  private isUserCurrentlyVoiced: boolean = false;
+
   constructor(callbacks: LiveSessionCallbacks) {
     this.callbacks = callbacks;
 
     this.audioStreamer = new AudioStreamer((isSpeaking) => {
+      const wasSpeaking = this.isMahiSpeaking;
       this.isMahiSpeaking = isSpeaking;
+
+      // When Mahi finishes speaking and transitions back to listening, bind a fresh conversation turnId
+      if (wasSpeaking && !isSpeaking) {
+        this.flushTranscriptImmediately();
+        voiceAuth.startNewTurn();
+      }
+
       if (this.state !== 'disconnected' && this.state !== 'connecting') {
         const nextState = isSpeaking ? 'speaking' : 'listening';
         this.setState(nextState);
@@ -98,13 +128,45 @@ export class LiveSession {
       },
       (micVol) => {
         this.callbacks.onMicLevel(micVol);
-        // Interruption: if user speaks loudly while Mahi is talking, immediately cut Mahi off
-        if (this.isMahiSpeaking && micVol > 0.35) {
+
+        // Adaptive VAD & Interruption threshold (fixes English Teacher premature cutoff)
+        const personaProfile = conversationMemory.getPersonaProfile();
+        const interruptThreshold = personaProfile.interruptionThreshold;
+
+        if (micVol > 0.14) {
+          if (!this.isUserCurrentlyVoiced) {
+            this.isUserCurrentlyVoiced = true;
+            // Bind new turn if silence exceeded persona VAD hold time
+            if (Date.now() - this.lastUserSpeechAt > personaProfile.vadHoldMs * 2) {
+              voiceAuth.startNewTurn();
+            }
+          }
+          this.lastUserSpeechAt = Date.now();
+        } else if (this.isUserCurrentlyVoiced && Date.now() - this.lastUserSpeechAt > personaProfile.vadHoldMs) {
+          this.isUserCurrentlyVoiced = false;
+        }
+
+        // Interruption: if user speaks above persona threshold while Mahi is talking, cut Mahi off
+        if (this.isMahiSpeaking && micVol > interruptThreshold) {
           console.log('[LiveSession] User interruption threshold met, stopping speech');
           this.audioStreamer.stop();
         }
+      },
+      (rawFrame16k) => {
+        // Feed 16kHz Float32 frames into Turn-Bound Multi-Sample Voice Auth Engine
+        voiceAuth.ingestLiveTurnAudioFrame(rawFrame16k);
       }
     );
+
+    // Wi-Fi / Network connectivity recovery listener
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        if (!this.userInitiatedDisconnect && this.state === 'disconnected') {
+          console.log('[LiveSession] Network restored — reconnecting Live session with context continuity');
+          this.connect(true);
+        }
+      });
+    }
   }
 
   public getState(): SessionState {
@@ -119,10 +181,40 @@ export class LiveSession {
     return this.micStreamer;
   }
 
+  /**
+   * Switch voice without recreating a healthy session if the voice is already active
+   */
   public setVoice(voice: string): void {
+    if (this.selectedVoice === voice && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return; // Avoid recreating healthy Live session
+    }
     this.selectedVoice = voice;
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'switch_voice', voice }));
+      const continuity = conversationMemory.buildSessionContinuityPayload(true);
+      this.ws.send(
+        JSON.stringify({
+          type: 'switch_voice',
+          voice,
+          continuity,
+        })
+      );
+    }
+  }
+
+  /**
+   * Switch persona mode while preserving recent conversation turns and suppressing redundant self-intro
+   */
+  public switchPersonaMode(mode: MahiPersonaMode): void {
+    conversationMemory.setPersonaMode(mode);
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.state !== 'disconnected') {
+      const continuity = conversationMemory.buildSessionContinuityPayload(true);
+      this.ws.send(
+        JSON.stringify({
+          type: 'switch_persona',
+          voice: this.selectedVoice,
+          continuity,
+        })
+      );
     }
   }
 
@@ -130,33 +222,113 @@ export class LiveSession {
     return this.selectedVoice;
   }
 
-  public async connect(): Promise<void> {
-    if (this.state === 'connecting' || this.state === 'listening' || this.state === 'speaking') {
+  /**
+   * Debounced streaming transcript accumulator + immediate flush
+   */
+  private queueStreamingTranscript(sender: 'user' | 'mahi', textChunk: string): void {
+    if (!textChunk || !textChunk.trim()) return;
+
+    if (this.pendingTranscriptBuffer && this.pendingTranscriptSender !== sender) {
+      this.flushTranscriptImmediately();
+    }
+
+    this.pendingTranscriptSender = sender;
+    this.pendingTranscriptBuffer = this.pendingTranscriptBuffer
+      ? `${this.pendingTranscriptBuffer} ${textChunk.trim()}`
+      : textChunk.trim();
+
+    if (this.transcriptDebounceTimer) {
+      clearTimeout(this.transcriptDebounceTimer);
+    }
+
+    this.transcriptDebounceTimer = setTimeout(() => {
+      this.flushTranscriptImmediately();
+    }, 320);
+  }
+
+  public flushTranscriptImmediately(): void {
+    if (this.transcriptDebounceTimer) {
+      clearTimeout(this.transcriptDebounceTimer);
+      this.transcriptDebounceTimer = null;
+    }
+
+    const text = this.pendingTranscriptBuffer.trim();
+    if (!text) return;
+
+    const sender = this.pendingTranscriptSender;
+    this.pendingTranscriptBuffer = '';
+
+    // Record into short-term conversation context (with deduplication)
+    conversationMemory.recordTurn(sender, text);
+
+    if (this.callbacks.onTranscript) {
+      this.callbacks.onTranscript({
+        id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender,
+        text,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  public async connect(isAutoReconnect: boolean = false): Promise<void> {
+    // Avoid recreating a healthy Live session
+    if (
+      (this.state === 'connecting' || this.state === 'listening' || this.state === 'speaking') &&
+      this.ws &&
+      this.ws.readyState === WebSocket.OPEN
+    ) {
       return;
     }
 
+    this.userInitiatedDisconnect = false;
     this.setState('connecting');
+    voiceAuth.startNewTurn();
 
     try {
-      // Initialize audio streamer context
       await this.audioStreamer.init();
-
-      // Start microphone streaming
       await this.micStreamer.start();
 
-      // Connect to server WebSocket
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       const wsUrl = `${protocol}//${host}/live-ws`;
 
       this.ws = new WebSocket(wsUrl);
 
-      this.ws.onopen = () => {
+      this.ws.onopen = async () => {
         console.log('[LiveSession] WebSocket connected');
-        // If user configured a specific voice, request it
-        if (this.selectedVoice !== 'Aoede') {
-          this.ws?.send(JSON.stringify({ type: 'switch_voice', voice: this.selectedVoice }));
+        this.reconnectAttempts = 0;
+
+        // Send initial session context (recent turns, long-term memory, persona, and voice)
+        const continuity = conversationMemory.buildSessionContinuityPayload(
+          isAutoReconnect || conversationMemory.getRecentTurns().length > 1
+        );
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(
+            JSON.stringify({
+              type: 'init_context',
+              voice: this.selectedVoice,
+              continuity,
+            })
+          );
         }
+
+        // Send live mobile battery & device telemetry
+        try {
+          const bat = await mobileControl.getBatteryStatus();
+          const dev = mobileControl.getDeviceInfo();
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(
+              JSON.stringify({
+                type: 'device_telemetry',
+                batteryLevel: bat.level,
+                batteryCharging: bat.charging,
+                deviceModel: dev.deviceModel,
+              })
+            );
+          }
+        } catch (_) {}
       };
 
       this.ws.onmessage = (event) => {
@@ -166,22 +338,25 @@ export class LiveSession {
           if (msg.type === 'ready') {
             console.log('[LiveSession] Gemini Live Session Ready!');
             this.setState('listening');
-            // Keep phone screen awake and enable background continuity
             backgroundLock.requestWakeLock().catch(() => {});
             backgroundLock.startBackgroundAudioKeeper();
           } else if (msg.type === 'audio' && msg.audio) {
+            // Immediate flush when Mahi's response starts
+            if (!this.hasFlushedForCurrentResponse && this.pendingTranscriptBuffer) {
+              this.hasFlushedForCurrentResponse = true;
+              this.flushTranscriptImmediately();
+            }
             this.audioStreamer.playChunk(msg.audio);
           } else if (msg.type === 'interrupted') {
             console.log('[LiveSession] Interrupted signal from model');
+            this.flushTranscriptImmediately();
             this.audioStreamer.stop();
+          } else if (msg.type === 'turn_complete') {
+            this.hasFlushedForCurrentResponse = false;
+            this.flushTranscriptImmediately();
           } else if (msg.type === 'transcript') {
-            if (this.callbacks.onTranscript && msg.text) {
-              this.callbacks.onTranscript({
-                id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                sender: msg.sender || 'mahi',
-                text: msg.text,
-                timestamp: Date.now(),
-              });
+            if (msg.text) {
+              this.queueStreamingTranscript(msg.sender || 'mahi', msg.text);
             }
           } else if (msg.type === 'tool_call') {
             this.handleToolCall(msg);
@@ -190,7 +365,7 @@ export class LiveSession {
             this.callbacks.onError(msg.error);
           } else if (msg.type === 'closed') {
             console.warn('[LiveSession] Gemini connection closed by server');
-            this.disconnect();
+            this.handleUnexpectedDrop();
           }
         } catch (err) {
           console.error('[LiveSession] Failed to parse message:', err);
@@ -199,16 +374,15 @@ export class LiveSession {
 
       this.ws.onerror = (err) => {
         console.error('[LiveSession] WebSocket error:', err);
-        this.callbacks.onError('Connection error to Mahi AI backend.');
-        this.disconnect();
       };
 
       this.ws.onclose = () => {
         console.log('[LiveSession] WebSocket closed');
-        this.disconnect();
+        this.handleUnexpectedDrop();
       };
 
-      // Heartbeat ping (every 5 seconds for mobile sleep resilience)
+      // Heartbeat ping (every 5 seconds for mobile sleep & Wi-Fi resilience)
+      if (this.pingTimer) clearInterval(this.pingTimer);
       this.pingTimer = setInterval(() => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ type: 'ping' }));
@@ -216,6 +390,7 @@ export class LiveSession {
       }, 5000);
 
       // Volume poll for visualizer
+      if (this.visualizerTimer) clearInterval(this.visualizerTimer);
       this.visualizerTimer = setInterval(() => {
         if (this.isMahiSpeaking) {
           const vol = this.audioStreamer.getVolume();
@@ -224,14 +399,44 @@ export class LiveSession {
           this.callbacks.onSpeakingLevel(0);
         }
       }, 50);
-
     } catch (err: any) {
       console.error('[LiveSession] Connect failed:', err);
-      this.callbacks.onError(err?.message || 'Could not start voice session. Check microphone access.');
+      this.callbacks.onError(
+        err?.message || 'Could not start voice session. Check microphone access.'
+      );
       this.disconnect();
     }
   }
 
+  /**
+   * Automatic reconnect with exponential backoff if session dropped unintentionally
+   */
+  private handleUnexpectedDrop(): void {
+    this.flushTranscriptImmediately();
+
+    if (this.userInitiatedDisconnect) {
+      this.cleanupSocketAndAudio();
+      return;
+    }
+
+    if (this.reconnectAttempts < 3 && navigator.onLine) {
+      this.reconnectAttempts++;
+      const delayMs = this.reconnectAttempts * 1200;
+      console.log(`[LiveSession] Auto-reconnecting (attempt ${this.reconnectAttempts}/3) in ${delayMs}ms...`);
+      this.cleanupSocketAndAudio(true);
+      this.reconnectTimer = setTimeout(() => {
+        if (!this.userInitiatedDisconnect) {
+          this.connect(true);
+        }
+      }, delayMs);
+    } else {
+      this.cleanupSocketAndAudio();
+    }
+  }
+
+  /**
+   * Centralized Tool & Action Execution with Fail-Closed Voice Authentication Gate
+   */
   private handleToolCall(msg: any): void {
     const { name, args } = msg;
 
@@ -240,21 +445,58 @@ export class LiveSession {
       const siteTitle = args.siteName || 'Website';
       const desc = args.actionDescription || `Opening ${siteTitle}`;
 
-      // Open website in new tab
-      try {
-        window.open(siteUrl, '_blank', 'noopener,noreferrer');
-      } catch (e) {
-        console.warn('Pop-up blocked or failed to open tab:', e);
-      }
+      const authCheck = voiceAuth.authorizeToolExecution(
+        'openWebsite',
+        args,
+        `Open ${siteTitle}`,
+        () => {
+          mobileControl.launchUri(siteUrl, true);
+          this.callbacks.onToolAction({
+            id: `tool-${Date.now()}`,
+            name: 'openWebsite',
+            url: siteUrl,
+            siteName: siteTitle,
+            actionDescription: desc,
+            timestamp: Date.now(),
+          });
+        }
+      );
 
-      this.callbacks.onToolAction({
-        id: `tool-${Date.now()}`,
-        name: 'openWebsite',
-        url: siteUrl,
-        siteName: siteTitle,
-        actionDescription: desc,
-        timestamp: Date.now(),
-      });
+      if (!authCheck.allowed) {
+        this.callbacks.onToolAction({
+          id: `sec-${Date.now()}`,
+          name: 'controlMobileDevice',
+          actionDescription: `🔐 ${authCheck.reason}`,
+          timestamp: Date.now(),
+        });
+        if (authCheck.requiresFallbackModal && this.callbacks.onOpenVoiceAuthModal) {
+          this.callbacks.onOpenVoiceAuthModal();
+        }
+      }
+    } else if (name === 'controlMobileDevice') {
+      const action = args?.action || 'open_control_center';
+      const actionLabel = `Mobile: ${action.replace(/_/g, ' ')}`;
+
+      const authCheck = voiceAuth.authorizeToolExecution(
+        'controlMobileDevice',
+        args || {},
+        actionLabel,
+        () => {
+          this.executeAuthorizedMobileAction(action, args || {});
+        }
+      );
+
+      if (!authCheck.allowed) {
+        this.callbacks.onToolAction({
+          id: `sec-${Date.now()}`,
+          name: 'controlMobileDevice',
+          actionDescription: `🔐 ${authCheck.reason}`,
+          timestamp: Date.now(),
+        });
+        if (authCheck.requiresFallbackModal && this.callbacks.onOpenVoiceAuthModal) {
+          this.callbacks.onOpenVoiceAuthModal();
+        }
+      }
     } else if (name === 'showLoveFeeling') {
       this.callbacks.onLoveFeeling({
         id: `love-${Date.now()}`,
@@ -309,6 +551,70 @@ export class LiveSession {
     }
   }
 
+  private executeAuthorizedMobileAction(action: string, args: Record<string, any>): void {
+    let desc = 'Mobile Control Executed';
+
+    if (action === 'flashlight_on') {
+      mobileControl.toggleFlashlight(true).then((res) => {
+        this.callbacks.onToolAction({
+          id: `mob-${Date.now()}`,
+          name: 'controlMobileDevice',
+          actionDescription: res.message,
+          timestamp: Date.now(),
+        });
+      });
+      return;
+    } else if (action === 'flashlight_off') {
+      mobileControl.toggleFlashlight(false).then((res) => {
+        this.callbacks.onToolAction({
+          id: `mob-${Date.now()}`,
+          name: 'controlMobileDevice',
+          actionDescription: res.message,
+          timestamp: Date.now(),
+        });
+      });
+      return;
+    } else if (action === 'vibrate') {
+      const style = (args?.vibrationStyle as VibrationStyle) || 'heartbeat';
+      const res = mobileControl.triggerVibration(style);
+      desc = res.message;
+    } else if (action === 'check_battery') {
+      mobileControl.getBatteryStatus().then((bat) => {
+        this.callbacks.onToolAction({
+          id: `mob-${Date.now()}`,
+          name: 'controlMobileDevice',
+          actionDescription: `Phone Battery: ${bat.level}% ${bat.charging ? '⚡ Charging' : '🔋'}`,
+          timestamp: Date.now(),
+        });
+      });
+      return;
+    } else if (action === 'phone_call') {
+      desc = mobileControl.makePhoneCall(args?.phoneNumber || '');
+    } else if (action === 'send_whatsapp') {
+      desc = mobileControl.sendWhatsApp(args?.phoneNumber || '', args?.message || '');
+    } else if (action === 'send_sms') {
+      desc = mobileControl.sendSms(args?.phoneNumber || '', args?.message || '');
+    } else if (action === 'open_app') {
+      const res = mobileControl.openMobileApp(args?.appName || 'google', args?.message || '');
+      desc = `Opened ${res.title} 📱`;
+    } else if (action === 'fullscreen') {
+      mobileControl.toggleFullscreen();
+      desc = 'Toggled Fullscreen Mode 📱';
+    } else if (action === 'open_control_center') {
+      if (this.callbacks.onOpenMobileControl) {
+        this.callbacks.onOpenMobileControl();
+      }
+      desc = 'Opened Mobile Control Center 📱';
+    }
+
+    this.callbacks.onToolAction({
+      id: `mob-${Date.now()}`,
+      name: 'controlMobileDevice',
+      actionDescription: desc,
+      timestamp: Date.now(),
+    });
+  }
+
   public sendImageFrame(base64Jpeg: string): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.state !== 'disconnected') {
       this.ws.send(
@@ -332,7 +638,7 @@ export class LiveSession {
     }
   }
 
-  public disconnect(): void {
+  private cleanupSocketAndAudio(keepConnectingState: boolean = false): void {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
@@ -353,11 +659,22 @@ export class LiveSession {
     }
 
     this.isMahiSpeaking = false;
-    this.setState('disconnected');
+    if (!keepConnectingState) {
+      this.setState('disconnected');
+      backgroundLock.releaseWakeLock();
+      backgroundLock.stopBackgroundAudioKeeper();
+    }
+  }
 
-    // Release Screen Wake Lock and stop background audio keeper
-    backgroundLock.releaseWakeLock();
-    backgroundLock.stopBackgroundAudioKeeper();
+  public disconnect(): void {
+    this.userInitiatedDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    // Safety flush of any pending streaming transcript on session end
+    this.flushTranscriptImmediately();
+    this.cleanupSocketAndAudio(false);
   }
 
   public toggleMute(): boolean {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, MessageSquare, Music, Sparkles, Bell, Camera, Radio } from 'lucide-react';
+import { Eye, MessageSquare, Music, Sparkles, Bell, Camera, Smartphone } from 'lucide-react';
 
 interface FuturisticControlBarProps {
   onOpenVision: () => void;
@@ -11,6 +11,8 @@ interface FuturisticControlBarProps {
   remindersCount: number;
   onOpenMemories: () => void;
   isMusicPlaying: boolean;
+  onOpenMobileControl: () => void;
+  isTorchActive?: boolean;
 }
 
 export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
@@ -23,11 +25,31 @@ export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
   remindersCount,
   onOpenMemories,
   isMusicPlaying,
+  onOpenMobileControl,
+  isTorchActive = false,
 }) => {
   return (
     <div className="w-full max-w-md mx-auto px-2 mb-2">
-      <div className="p-2 rounded-2xl bg-neutral-950/80 backdrop-blur-xl border border-white/15 shadow-2xl flex items-center justify-around gap-1">
-        {/* 1. AI Vision (Camera) */}
+      <div className="p-1.5 rounded-2xl bg-neutral-950/85 backdrop-blur-xl border border-white/15 shadow-2xl flex items-center justify-around gap-0.5">
+        {/* 1. Mobile Control Center (NEW) */}
+        <button
+          type="button"
+          onClick={onOpenMobileControl}
+          title="Mobile Phone Control Center (Torch, Call, WhatsApp, APK)"
+          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all group cursor-pointer ${
+            isTorchActive
+              ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50'
+              : 'hover:bg-emerald-500/20 text-white/85 hover:text-emerald-300'
+          }`}
+        >
+          <div className="p-1.5 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/35 text-emerald-400 relative">
+            <Smartphone className="w-4 h-4" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <span className="text-[9px] font-extrabold tracking-tight text-emerald-300">Mobile</span>
+        </button>
+
+        {/* 2. AI Vision (Camera) */}
         <button
           type="button"
           onClick={onOpenVision}

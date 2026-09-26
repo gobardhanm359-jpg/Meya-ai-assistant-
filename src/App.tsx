@@ -45,6 +45,12 @@ import { SweetRemindersModal } from './components/SweetRemindersModal.tsx';
 import { AmbientMusicModal } from './components/AmbientMusicModal.tsx';
 import { ShayariCard } from './components/ShayariCard.tsx';
 import { FuturisticControlBar } from './components/FuturisticControlBar.tsx';
+import { MobileControlModal } from './components/MobileControlModal.tsx';
+import { VoiceAuthModal } from './components/VoiceAuthModal.tsx';
+import { PWAInstallButton, PWAInstallBanner, OfflineIndicator } from './components/PWAInstallButton.tsx';
+import { mobileControl } from './services/mobileControlService.ts';
+import { voiceAuth, VerificationResult } from './services/voiceAuthService.ts';
+import { conversationMemory, MahiPersonaMode } from './services/conversationMemoryService.ts';
 
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>('disconnected');
@@ -72,6 +78,16 @@ export default function App() {
   const [isMusicModalOpen, setIsMusicModalOpen] = useState<boolean>(false);
   const [isRemindersOpen, setIsRemindersOpen] = useState<boolean>(false);
   const [isMemoriesOpen, setIsMemoriesOpen] = useState<boolean>(false);
+  const [isMobileControlOpen, setIsMobileControlOpen] = useState<boolean>(false);
+  const [mobileControlTab, setMobileControlTab] = useState<'controls' | 'call_chat' | 'apps' | 'apk'>('controls');
+  const [isVoiceAuthOpen, setIsVoiceAuthOpen] = useState<boolean>(false);
+  const [voiceAuthState, setVoiceAuthState] = useState<VerificationResult>(
+    voiceAuth.getLastVerification()
+  );
+  const [torchState, setTorchState] = useState<{ active: boolean; screenFallback: boolean }>({
+    active: false,
+    screenFallback: false,
+  });
   const [isHologramActive, setIsHologramActive] = useState<boolean>(false);
   const [activeShayari, setActiveShayari] = useState<ShayariEvent | null>(null);
 
@@ -195,11 +211,38 @@ export default function App() {
       onHologramToggle: (enabled) => {
         setIsHologramActive(enabled);
       },
+      onOpenMobileControl: () => {
+        setMobileControlTab('controls');
+        setIsMobileControlOpen(true);
+      },
+      onOpenVoiceAuthModal: () => {
+        setIsVoiceAuthOpen(true);
+      },
     });
 
     liveSessionRef.current = session;
 
+    const unsubTorch = mobileControl.onTorchChange((active, screenFallback) => {
+      setTorchState({ active, screenFallback });
+    });
+
+    const unsubVoiceAuth = voiceAuth.subscribe(() => {
+      setVoiceAuthState(voiceAuth.getLastVerification());
+    });
+
+    // Handle PWA Web App Manifest home-screen shortcuts (?action=mobile | security | call)
+    const params = new URLSearchParams(window.location.search);
+    const shortcutAction = params.get('action');
+    if (shortcutAction === 'mobile') {
+      setMobileControlTab('controls');
+      setIsMobileControlOpen(true);
+    } else if (shortcutAction === 'security') {
+      setIsVoiceAuthOpen(true);
+    }
+
     return () => {
+      unsubTorch();
+      unsubVoiceAuth();
       session.destroy();
     };
   }, []);
@@ -291,9 +334,24 @@ export default function App() {
     setLoveScore((prev) => Math.min(100, prev + 1));
   };
 
+  const handleMobileStatusToast = (message: string) => {
+    const evt: ToolEvent = {
+      id: `mob-toast-${Date.now()}`,
+      name: 'controlMobileDevice',
+      actionDescription: message,
+      timestamp: Date.now(),
+    };
+    setActiveToolEvent(evt);
+    setTimeout(() => {
+      setActiveToolEvent((curr) => (curr?.id === evt.id ? null : curr));
+    }, 4500);
+  };
+
   // Background atmosphere styling based on active theme
   const backgroundStyle = useMemo(() => {
     switch (theme) {
+      case 'crimson-desire':
+        return 'from-[#220309] via-[#2c0512] to-[#0c0104]';
       case 'cyber-neon':
         return 'from-slate-950 via-[#0a0f1d] to-[#041527]';
       case 'midnight-velvet':
@@ -383,6 +441,37 @@ export default function App() {
 
         {/* Status Pill & Quick Toggles */}
         <div className="flex items-center space-x-1.5">
+          {/* Voice Auth 3-State Security Badge */}
+          <button
+            type="button"
+            onClick={() => setIsVoiceAuthOpen(true)}
+            title={`Voice Auth Security: ${voiceAuthState.state.replace('_', ' ').toUpperCase()}`}
+            className={`px-2 py-1 rounded-full border text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer active:scale-95 ${
+              voiceAuthState.state === 'verified_admin'
+                ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-200 shadow-sm shadow-emerald-500/20'
+                : voiceAuthState.state === 'not_verified'
+                ? 'bg-rose-500/25 border-rose-400/60 text-rose-200'
+                : 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200 hover:bg-cyan-500/30'
+            }`}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            <span>
+              {voiceAuthState.state === 'verified_admin'
+                ? 'Verified'
+                : voiceAuthState.state === 'not_verified'
+                ? 'Unverified'
+                : 'Voice Auth'}
+            </span>
+          </button>
+
+          {/* In-App PWA / APK Install Button */}
+          <PWAInstallButton
+            onOpenApkGuide={() => {
+              setMobileControlTab('apk');
+              setIsMobileControlOpen(true);
+            }}
+          />
+
           {/* Quick Lock Screen Off Toggle */}
           <button
             type="button"
@@ -427,6 +516,9 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* In-App PWA Install & Update Banner */}
+      <PWAInstallBanner />
 
       {/* ACTIVE CALL SCREEN & LOCK STATUS PILL */}
       {(sessionState === 'listening' || sessionState === 'speaking') && (
@@ -542,6 +634,11 @@ export default function App() {
 
       {/* FUTURISTIC FLOATING DOCK & CONTROLS */}
       <FuturisticControlBar
+        onOpenMobileControl={() => {
+          setMobileControlTab('controls');
+          setIsMobileControlOpen(true);
+        }}
+        isTorchActive={torchState.active}
         onOpenVision={() => setIsVisionOpen(true)}
         onOpenTranscript={() => setIsTranscriptOpen(true)}
         onOpenMusic={() => setIsMusicModalOpen(true)}
@@ -636,7 +733,11 @@ export default function App() {
         isOpen={isTranscriptOpen}
         onClose={() => setIsTranscriptOpen(false)}
         transcripts={transcripts}
-        onClear={() => setTranscripts([])}
+        onClear={() => {
+          setTranscripts([]);
+          conversationMemory.clearShortTermChatOnly();
+          handleMobileStatusToast('Chat History Cleared (Long-Term Memory Preserved 🧠)');
+        }}
       />
 
       {/* Photo Memories Album Modal */}
@@ -685,6 +786,58 @@ export default function App() {
         isScreenAwake={isScreenAwake}
         onToggleScreenAwake={handleToggleScreenAwake}
       />
+
+      {/* Mobile Control Center Modal */}
+      <MobileControlModal
+        isOpen={isMobileControlOpen}
+        onClose={() => setIsMobileControlOpen(false)}
+        isScreenAwake={isScreenAwake}
+        onToggleScreenAwake={handleToggleScreenAwake}
+        onOpenVisionCamera={() => setIsVisionOpen(true)}
+        onStatusToast={handleMobileStatusToast}
+        initialTab={mobileControlTab}
+      />
+
+      {/* Voice Authentication, Security & Memory Modal */}
+      <VoiceAuthModal
+        isOpen={isVoiceAuthOpen}
+        onClose={() => setIsVoiceAuthOpen(false)}
+        onSwitchPersona={(mode: MahiPersonaMode) => {
+          liveSessionRef.current?.switchPersonaMode(mode);
+          if (mode === 'hot-siren') {
+            setCuteStyle('siren');
+            setTheme('crimson-desire');
+          }
+        }}
+        onStatusToast={handleMobileStatusToast}
+      />
+
+      {/* Screen Torch Fallback Overlay (when rear camera LED is unavailable) */}
+      {torchState.active && torchState.screenFallback && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-black">
+          <div className="text-center space-y-3 max-w-xs">
+            <div className="w-16 h-16 rounded-full bg-amber-400 mx-auto flex items-center justify-center shadow-2xl">
+              <Sun className="w-9 h-9 text-black" />
+            </div>
+            <h3 className="text-lg font-black uppercase tracking-wider">
+              Screen Flashlight Torch ON
+            </h3>
+            <p className="text-xs text-neutral-700 font-medium">
+              Maximum screen brightness illumination active.
+            </p>
+            <button
+              type="button"
+              onClick={() => mobileControl.stopTorch()}
+              className="mt-4 w-full py-3 px-6 rounded-2xl bg-black text-white font-bold text-sm shadow-xl cursor-pointer active:scale-95"
+            >
+              Turn Off Flashlight
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Status Indicator */}
+      <OfflineIndicator />
     </main>
   );
 }

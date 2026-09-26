@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Volume2, Palette, Cpu, Sparkles, Heart, Smile, Atom, Sparkle, Sun, Moon, CheckCircle2 } from 'lucide-react';
+import { X, Volume2, Palette, Cpu, Sparkles, Heart, Smile, Atom, Sun, Moon, CheckCircle2, Download, Smartphone, ShieldCheck } from 'lucide-react';
 import { CuteGirlStyle } from './AnimeAvatar3D.tsx';
+import { usePWAInstall, useOnlineStatus } from '../services/usePWAInstall.ts';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,6 +32,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isScreenAwake,
   onToggleScreenAwake,
 }) => {
+  const { isInstallable, isInstalled, swRegistered, offlineReady, install, refreshApp, needRefresh } = usePWAInstall();
+  const isOnline = useOnlineStatus();
+
   if (!isOpen) return null;
 
   const voices = [
@@ -54,6 +58,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       name: 'Romantic Blush',
       accent: 'from-pink-500 to-rose-600',
       desc: 'Passionate crimson & rose glow',
+    },
+    {
+      id: 'crimson-desire',
+      name: 'Hot Crimson Fever 🔥',
+      accent: 'from-red-600 via-rose-500 to-amber-500',
+      desc: 'Intense velvet red & fiery romance aura',
     },
     {
       id: 'cyber-neon',
@@ -170,6 +180,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     name: 'Mahi (Photo Style) ✨',
                     desc: 'Wavy chocolate hair, curtain bangs, gold necklace, finger-on-cheek wink pose',
                     badge: 'Photo Match',
+                  },
+                  {
+                    id: 'siren' as const,
+                    name: 'Hot Siren Mahi 🔥',
+                    desc: 'Sultry crimson velvet dress, ruby glossy lips, fiery heart aura & bold romance',
+                    badge: 'Sexy & Hot',
                   },
                   {
                     id: 'neko' as const,
@@ -342,6 +358,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Agar aap phone ka power button daba kar screen lock bhi kar denge, tab bhi Mahi ki voice call aur microphone disconnect nahi honge—Mahi background mein aapse baat karti rahegi!
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Progressive Web App (PWA) & Install Status */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Smartphone className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                Progressive Web App (PWA) &amp; Install
+              </h3>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white">
+                    {isInstalled ? 'Installed Standalone PWA' : 'Mahi AI WebAPK / PWA Ready'}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/25 text-emerald-200 border border-emerald-400/30">
+                  {swRegistered ? 'SW Active' : 'Manifest Ready'}
+                </span>
+              </div>
+              <p className="text-[10px] text-white/65 leading-snug">
+                Install Mahi AI on your Android, iOS, or Desktop home screen for full-screen standalone mode, app shortcuts, and offline asset caching ({isOnline ? 'Online' : 'Offline Mode'}).
+              </p>
+              <div className="flex items-center gap-2">
+                {!isInstalled && isInstallable && (
+                  <button
+                    type="button"
+                    onClick={() => install()}
+                    className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Install PWA Now</span>
+                  </button>
+                )}
+                {needRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => refreshApp()}
+                    className="flex-1 py-2 px-3 rounded-xl bg-amber-500/30 border border-amber-400 text-amber-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Apply PWA Update</span>
+                  </button>
+                )}
+                {offlineReady && (
+                  <span className="text-[10px] text-emerald-300 font-semibold">
+                    ✨ Offline cache ready
+                  </span>
+                )}
               </div>
             </div>
           </div>

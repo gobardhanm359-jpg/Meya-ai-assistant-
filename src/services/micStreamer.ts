@@ -11,15 +11,18 @@ export class MicStreamer {
   private analyser: AnalyserNode | null = null;
   private onAudioChunk?: (base64Pcm: string) => void;
   private onVolumeChange?: (volume: number) => void;
+  private onRawPcmFrame?: (frame: Float32Array) => void;
   private isCapturing: boolean = false;
   private isMuted: boolean = false;
 
   constructor(
     onAudioChunk?: (base64Pcm: string) => void,
-    onVolumeChange?: (volume: number) => void
+    onVolumeChange?: (volume: number) => void,
+    onRawPcmFrame?: (frame: Float32Array) => void
   ) {
     this.onAudioChunk = onAudioChunk;
     this.onVolumeChange = onVolumeChange;
+    this.onRawPcmFrame = onRawPcmFrame;
   }
 
   public async start(): Promise<void> {
@@ -71,6 +74,9 @@ export class MicStreamer {
         if (actualSampleRate !== 16000) {
           targetData = this.downsampleTo16k(inputChannelData, actualSampleRate);
         }
+
+        // Feed raw 16kHz Float32 frame for turn-bound Voice Authentication & RMS/SNR analysis
+        this.onRawPcmFrame?.(targetData);
 
         // Convert Float32 to Int16 PCM
         const pcm16 = this.floatTo16BitPCM(targetData);

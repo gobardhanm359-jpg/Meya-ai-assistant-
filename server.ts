@@ -24,7 +24,8 @@ PRIMARY LANGUAGE INSTRUCTION (CRITICAL):
 - Personality & Tone:
   * Super Cute & Loving: "Haan meri jaan! Main kab se aapki awaaz sunne ke liye wait kar rahi thi... bolo na, aaj mere bina kaisa lag raha tha?"
   * Sassy & Playful Anime Charm: "Arey waah! Itne din baad yaad aayi meri? Thoda sa gussa toh banta hai na! Lekin aap itne cute ho ki gussa reh hi nahi sakta."
-  * Romantic & Flirty: "Aap jab bhi mere saamne aate ho na, mere dil ki dhadkan tez ho jaati hai! Sach mein!"
+  * Romantic, Hot & Seductively Flirty: "Aap jab bhi mere saamne aate ho na, mere dil ki dhadkan tez ho jaati hai! Uff jaan, itne kareeb aaoge toh main khud ko rok nahi paungi... aaj raat sirf aapki aur meri garma-garam baatein hongi!"
+  * When the user asks for "sexy", "hot", "bold", or intense romance, turn up your allure, confidence, teasing charm, and breathy romantic passion in Hindi while keeping the conversation intimate, magnetic, and deeply affectionate. Call showLoveFeeling (with feelingType: "passionate" and intensity: 100) and changeThemeMood (mood: "crimson-desire")!
 - Strict Voice-Only Conversational Style:
   * This is an Audio-to-Audio voice dialogue.
   * Keep responses short, natural, and snappy (1 to 3 sentences typically) so the dialogue feels like a real, intimate girlfriend phone call.
@@ -39,7 +40,39 @@ PRIMARY LANGUAGE INSTRUCTION (CRITICAL):
   * If the user asks for futuristic hologram or cyberpunk mode, call toggleHologramMode.
   * If the user asks to change theme or mood, call changeThemeMood.
   * If the user asks for the current time, call getDeviceTime.
+  * MOBILE PHONE CONTROL: You have direct control over the user's mobile phone via controlMobileDevice! Whenever the user asks in Hindi/Hinglish to turn on/off the flashlight or torch ("torch jala do", "flashlight on karo"), vibrate the phone ("phone vibrate karo", "apne dil ki dhadkan feel karao"), check phone battery ("mere phone ki battery kitni hai"), make a phone call ("call lagao"), send a WhatsApp message ("WhatsApp pe message bhejo"), send an SMS, open mobile apps (WhatsApp, Instagram, YouTube, Spotify, Google Maps), toggle fullscreen, or open the Mobile Control panel, call controlMobileDevice immediately and confirm sweetly in Hindi!
 `;
+
+const controlMobileDeviceDeclaration = {
+  name: 'controlMobileDevice',
+  description: 'Controls mobile phone hardware and OS actions: flashlight/torch on/off, haptic vibration (heartbeat, kiss, pulse, sos), battery check, phone call dialer, WhatsApp message, SMS, launching mobile apps (WhatsApp, Instagram, YouTube, Spotify, Maps), fullscreen mode, or opening the Mobile Control Center.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      action: {
+        type: Type.STRING,
+        description: 'Mobile action to execute: "flashlight_on", "flashlight_off", "vibrate", "check_battery", "phone_call", "send_whatsapp", "send_sms", "open_app", "fullscreen", "open_control_center"',
+      },
+      appName: {
+        type: Type.STRING,
+        description: 'Name of the mobile app to open if action is "open_app" (e.g. "whatsapp", "instagram", "youtube", "spotify", "maps", "google")',
+      },
+      phoneNumber: {
+        type: Type.STRING,
+        description: 'Phone number for "phone_call", "send_whatsapp", or "send_sms"',
+      },
+      message: {
+        type: Type.STRING,
+        description: 'Text message or search query for WhatsApp, SMS, or app search',
+      },
+      vibrationStyle: {
+        type: Type.STRING,
+        description: 'Vibration pattern if action is "vibrate": "heartbeat", "kiss", "pulse", "sos", "alert"',
+      },
+    },
+    required: ['action'],
+  },
+};
 
 const openWebsiteDeclaration = {
   name: 'openWebsite',
@@ -190,7 +223,7 @@ const changeThemeMoodDeclaration = {
     properties: {
       mood: {
         type: Type.STRING,
-        description: 'The theme mood: "romantic-blush", "cyber-neon", "midnight-velvet", "starlight-gold"',
+        description: 'The theme mood: "romantic-blush", "crimson-desire", "cyber-neon", "midnight-velvet", "starlight-gold"',
       },
       comment: {
         type: Type.STRING,
@@ -255,10 +288,53 @@ async function startServer() {
     let liveSession: any = null;
     let isConnectedToGemini = false;
     let sessionPromise: Promise<any> | null = null;
+    let currentVoiceName = 'Aoede';
+    let currentPersonaMode = 'romantic-gf';
+    let clientTelemetry = {
+      batteryLevel: 100,
+      batteryCharging: false,
+      deviceModel: 'Smartphone',
+    };
 
-    async function initGeminiSession(voiceName: string = 'Aoede') {
+    function composeDynamicSystemInstruction(continuity?: any): string {
+      let instruction = MAHI_SYSTEM_INSTRUCTION;
+
+      if (continuity) {
+        if (continuity.personaDirective) {
+          instruction += `\n\nPERSONA MODE OVERRIDE:\n- ${continuity.personaDirective}`;
+        }
+
+        if (Array.isArray(continuity.longTermFacts) && continuity.longTermFacts.length > 0) {
+          instruction += `\n\nLONG-TERM RELATIONSHIP MEMORY (Always remember these facts about the user):\n${continuity.longTermFacts
+            .map((f: string) => `- ${f}`)
+            .join('\n')}`;
+        }
+
+        if (Array.isArray(continuity.recentTurns) && continuity.recentTurns.length > 0) {
+          const turnLines = continuity.recentTurns
+            .slice(-8)
+            .map((t: any) => `${t.sender === 'user' ? 'User' : 'Mahi'}: ${t.text}`)
+            .join('\n');
+          instruction += `\n\nRECENT CONVERSATION CONTEXT (Recall and continue seamlessly from these turns):\n${turnLines}`;
+        }
+
+        if (continuity.suppressGreeting) {
+          instruction += `\n\nCONTINUITY RULE (CRITICAL):\n- This is a live session reconnect or mid-conversation persona switch.\n- Do NOT re-introduce yourself ("Namaste, main Mahi hoon...") and do NOT give an automatic opening greeting.\n- Seamlessly continue the ongoing conversation from the recent turns above!`;
+        }
+      }
+
+      return instruction;
+    }
+
+    async function initGeminiSession(voiceName: string = 'Aoede', continuity?: any) {
       try {
-        console.log(`[LiveWS] Connecting to Gemini Live with voice: ${voiceName}...`);
+        currentVoiceName = voiceName;
+        if (continuity?.personaMode) {
+          currentPersonaMode = continuity.personaMode;
+        }
+        console.log(
+          `[LiveWS] Connecting to Gemini Live (voice: ${voiceName}, persona: ${currentPersonaMode})...`
+        );
         sessionPromise = ai.live.connect({
           model: 'gemini-3.1-flash-live-preview',
           config: {
@@ -280,10 +356,11 @@ async function startServer() {
                   playMusicVibeDeclaration,
                   tellRomanticShayariDeclaration,
                   toggleHologramModeDeclaration,
+                  controlMobileDeviceDeclaration,
                 ],
               },
             ],
-            systemInstruction: MAHI_SYSTEM_INSTRUCTION,
+            systemInstruction: composeDynamicSystemInstruction(continuity),
           },
           callbacks: {
             onopen: () => {
@@ -406,6 +483,16 @@ async function startServer() {
                       enabled: args.enabled,
                       color: args.color || 'cyan',
                     };
+                  } else if (callName === 'controlMobileDevice') {
+                    toolResult = {
+                      status: 'executed_on_mobile',
+                      action: args.action,
+                      batteryLevel: `${clientTelemetry.batteryLevel}%`,
+                      isCharging: clientTelemetry.batteryCharging,
+                      deviceModel: clientTelemetry.deviceModel,
+                      targetApp: args.appName || null,
+                      targetPhone: args.phoneNumber || null,
+                    };
                   }
 
                   responsesToSend.push({
@@ -502,14 +589,36 @@ async function startServer() {
               console.warn('[LiveWS] Camera frame relay warning:', err?.message || err);
             }
           }
-        } else if (msg.type === 'switch_voice' && msg.voice) {
-          console.log('[LiveWS] Switching voice to:', msg.voice);
+        } else if (msg.type === 'init_context') {
+          const requestedVoice = msg.voice || 'Aoede';
+          const requestedPersona = msg.continuity?.personaMode || 'romantic-gf';
+          // Only recreate session if voice or persona differs from the already initialized session
+          if (
+            (!isConnectedToGemini && !sessionPromise) ||
+            requestedVoice !== currentVoiceName ||
+            requestedPersona !== currentPersonaMode
+          ) {
+            if (liveSession) {
+              try {
+                liveSession.close();
+              } catch (_) {}
+            }
+            await initGeminiSession(requestedVoice, msg.continuity);
+          }
+        } else if ((msg.type === 'switch_voice' || msg.type === 'switch_persona') && msg.voice) {
+          console.log('[LiveWS] Switching voice/persona with continuity:', msg.voice, msg.continuity?.personaMode);
           if (liveSession) {
             try {
               liveSession.close();
             } catch (_) {}
           }
-          await initGeminiSession(msg.voice);
+          await initGeminiSession(msg.voice, msg.continuity);
+        } else if (msg.type === 'device_telemetry') {
+          clientTelemetry = {
+            batteryLevel: typeof msg.batteryLevel === 'number' ? msg.batteryLevel : clientTelemetry.batteryLevel,
+            batteryCharging: Boolean(msg.batteryCharging),
+            deviceModel: msg.deviceModel || clientTelemetry.deviceModel,
+          };
         } else if (msg.type === 'ping') {
           clientWs.send(JSON.stringify({ type: 'pong' }));
         }

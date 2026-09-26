@@ -71,10 +71,11 @@ export const LiveTranscriptModal: React.FC<LiveTranscriptModalProps> = ({
                 <button
                   type="button"
                   onClick={onClear}
-                  title="Clear Transcript"
-                  className="p-2 rounded-full bg-white/10 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 transition-colors"
+                  title="Clear Chat History (Long-Term Memory stays safe)"
+                  className="px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Chat</span>
                 </button>
               </>
             )}
@@ -142,8 +143,8 @@ export const LiveTranscriptModal: React.FC<LiveTranscriptModalProps> = ({
 
         {/* Footer info */}
         <div className="mt-3 flex items-center justify-between text-[10px] text-white/40 px-1">
-          <span>AI Audio Speech-to-Text Pipeline</span>
-          <span>Automatic Hindi Transcript</span>
+          <span>Debounced Live Stream + Auto-Flush</span>
+          <span className="text-emerald-300/80">Long-Term Memory Protected 🧠</span>
         </div>
       </div>
     </div>

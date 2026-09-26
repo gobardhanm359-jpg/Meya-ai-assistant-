@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, Heart, Palette, Clock, CheckCircle2 } from 'lucide-react';
+import { ExternalLink, Heart, Palette, Clock, CheckCircle2, Smartphone } from 'lucide-react';
 import { ToolEvent, LoveFeelingEvent } from '../services/liveSession.ts';
 
 interface ActionHudProps {
@@ -56,6 +56,8 @@ export const ActionHud: React.FC<ActionHudProps> = ({
             <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 border border-cyan-400/30">
               {toolEvent.name === 'openWebsite' ? (
                 <ExternalLink className="w-4 h-4 text-cyan-300" />
+              ) : toolEvent.name === 'controlMobileDevice' ? (
+                <Smartphone className="w-4 h-4 text-emerald-300" />
               ) : toolEvent.name === 'changeThemeMood' ? (
                 <Palette className="w-4 h-4 text-purple-300" />
               ) : (

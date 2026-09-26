@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Heart, Flame, Compass, Sparkles } from 'lucide-react';
+import { Mic, Heart, Flame, Compass, Smartphone } from 'lucide-react';
 
 interface VoicePromptsProps {
   onSelectPrompt?: (text: string) => void;
@@ -14,22 +14,22 @@ const PROMPT_SUGGESTIONS = [
     color: 'from-pink-500/20 to-rose-500/20 text-rose-300 border-rose-500/30',
   },
   {
-    icon: Flame,
-    text: 'Mahi, koi pyari si shayari sunao na!',
-    category: 'Shayari & Flirt',
-    color: 'from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-500/30',
+    icon: Smartphone,
+    text: 'Mahi, flashlight on karo ya battery batao',
+    category: 'Mobile Control',
+    color: 'from-emerald-500/20 to-teal-500/20 text-emerald-300 border-emerald-500/30',
   },
   {
     icon: Compass,
-    text: 'Mahi, YouTube khol do mere liye',
-    category: 'Browser Action',
+    text: 'Mahi, WhatsApp ya YouTube khol do',
+    category: 'Phone Apps',
     color: 'from-cyan-500/20 to-blue-500/20 text-cyan-300 border-cyan-500/30',
   },
   {
-    icon: Sparkles,
-    text: 'Mahi, mood Romantic Blush kar do',
-    category: 'Theme Mood',
-    color: 'from-purple-500/20 to-pink-500/20 text-purple-300 border-purple-500/30',
+    icon: Flame,
+    text: 'Mahi, aaj thodi hot aur romantic baatein karo na 🔥',
+    category: 'Hot & Flirty',
+    color: 'from-red-500/25 to-rose-500/25 text-amber-300 border-red-500/40',
   },
 ];
 

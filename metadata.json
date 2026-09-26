@@ -1,7 +1,7 @@
 {
   "name": "Mahi AI Assistant",
   "description": "Real-time, voice-to-voice AI girlfriend assistant with a witty, confident, sassy, and loving persona powered by Gemini Live API.",
-  "requestFramePermissions": ["microphone"],
+  "requestFramePermissions": ["microphone", "camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
 

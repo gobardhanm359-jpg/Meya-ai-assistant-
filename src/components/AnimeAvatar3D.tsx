@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SessionState } from '../services/liveSession.ts';
-import { Heart, Sparkles, Wand2, Camera, UserCheck } from 'lucide-react';
+import { mobileControl } from '../services/mobileControlService.ts';
+import { Heart, Sparkles, Wand2, Camera, UserCheck, Flame } from 'lucide-react';
 
-export type CuteGirlStyle = 'reference' | 'neko' | 'bunny' | 'angel' | 'sakura';
+export type CuteGirlStyle = 'reference' | 'siren' | 'neko' | 'bunny' | 'angel' | 'sakura';
 
 interface AnimeAvatar3DProps {
   state: SessionState;
@@ -33,7 +34,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [avatarRenderMode, setAvatarRenderMode] = useState<'3d-model' | 'live-portrait'>('live-portrait');
   const [reactionBubble, setReactionBubble] = useState<{ text: string; icon: string } | null>(null);
-  const [currentAction, setCurrentAction] = useState<'normal' | 'kiss' | 'pout' | 'cheer' | 'headpat'>('normal');
+  const [currentAction, setCurrentAction] = useState<'normal' | 'kiss' | 'hot' | 'pout' | 'cheer' | 'headpat'>('normal');
   const [parallax, setParallax] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // References for Three.js render loop
@@ -92,6 +93,17 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
           clothes: 0xf9a8d4, // soft pastel pink scoop-neck blouse
           clothesAccent: 0xf472b6,
           necklace: 0xf59e0b, // gold pendant
+        };
+      case 'siren':
+        return {
+          main: 0xe11d48,
+          glow: 0xfb7185,
+          accent: 0xfef08a,
+          hair: 0x1c0a0e, // deep midnight espresso waves
+          hairHighlight: 0xbe123c, // crimson velvet highlights
+          clothes: 0x9f1239, // hot crimson velvet dress
+          clothesAccent: 0xf59e0b,
+          necklace: 0xfbbf24,
         };
       case 'bunny':
         return {
@@ -158,10 +170,10 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
     bunnyGroup.visible = cuteStyle === 'bunny';
     angelGroup.visible = cuteStyle === 'angel';
     sakuraGroup.visible = cuteStyle === 'sakura';
-    referenceHairGroup.visible = cuteStyle === 'reference';
-    pigtailHairGroup.visible = cuteStyle !== 'reference';
-    // The finger-on-cheek selfie hand pose is active in reference mode
-    handGroup.visible = cuteStyle === 'reference';
+    referenceHairGroup.visible = cuteStyle === 'reference' || cuteStyle === 'siren';
+    pigtailHairGroup.visible = cuteStyle !== 'reference' && cuteStyle !== 'siren';
+    // The finger-on-cheek selfie hand pose is active in reference & siren mode
+    handGroup.visible = cuteStyle === 'reference' || cuteStyle === 'siren';
   }, [cuteStyle]);
 
   // Three.js Scene Setup
@@ -668,8 +680,8 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
     headGroup.add(pigtailHairGroup);
 
     // Initial visibility
-    referenceHairGroup.visible = cuteStyle === 'reference';
-    pigtailHairGroup.visible = cuteStyle !== 'reference';
+    referenceHairGroup.visible = cuteStyle === 'reference' || cuteStyle === 'siren';
+    pigtailHairGroup.visible = cuteStyle !== 'reference' && cuteStyle !== 'siren';
 
     // --- ACCESSORIES (NEKO, BUNNY, ANGEL, SAKURA) ---
     const nekoGroup = new THREE.Group();
@@ -991,24 +1003,42 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
   }, [cuteStyle]);
 
   // Cute Actions Trigger
-  const triggerCuteAction = (action: 'kiss' | 'headpat' | 'pout' | 'cheer') => {
+  const triggerCuteAction = (action: 'kiss' | 'hot' | 'headpat' | 'pout' | 'cheer') => {
     setCurrentAction(action);
     onHeartBurst();
 
     if (action === 'kiss') {
+      mobileControl.triggerVibration('kiss');
       if (animRefs.current) {
         animRefs.current.isWinking = true;
         animRefs.current.winkProgress = 0;
         animRefs.current.loveBurstQueue += 20;
       }
       const kissTexts = [
-        'Mwah~ Yeh sweet kiss sirf aapke liye hai, jaan! 💋',
-        'Mera wink dekh ke dil dhadka na aapka? Hehe~ 💕',
-        'Aapke liye 100 kisses, mere hero! 😚',
+        'Mwah~ Yeh garma-garam sweet kiss sirf aapke hothon ke liye, jaan! 💋🔥',
+        'Mera wink dekh ke dil dhadka na aapka? Paas aao na~ 💕',
+        'Aapke liye 100 passionate kisses, mere hero! 😚💋',
       ];
       setReactionBubble({
         text: kissTexts[Math.floor(Math.random() * kissTexts.length)],
         icon: '💋',
+      });
+    } else if (action === 'hot') {
+      mobileControl.triggerVibration('heartbeat');
+      if (animRefs.current) {
+        animRefs.current.isWinking = true;
+        animRefs.current.winkProgress = 0;
+        animRefs.current.loveBurstQueue += 30;
+      }
+      const hotTexts = [
+        'Uff jaan! Aap jab aise dekhte ho toh माहौल aur bhi hot ho jata hai! 🔥💋',
+        'Itne kareeb aoge toh main khud ko rok nahi paungi, shona! ❤️‍🔥',
+        'Aaj raat sirf aapki aur meri baatein hongi... feel my heartbeat! 🔥💓',
+        'Aapki aawaz sun ke hi mere dil mein aag lag jaati hai, meri jaan! 🔥😘',
+      ];
+      setReactionBubble({
+        text: hotTexts[Math.floor(Math.random() * hotTexts.length)],
+        icon: '🔥',
       });
     } else if (action === 'headpat') {
       const headpatTexts = [
@@ -1050,6 +1080,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
 
   const cuteGirlsConfig: Record<CuteGirlStyle, { name: string; tag: string; emoji: string; badgeColor: string }> = {
     reference: { name: 'Mahi (Photo)', tag: 'Wavy Brunette Pout', emoji: '✨', badgeColor: 'from-rose-500 to-pink-500' },
+    siren: { name: 'Hot Siren Mahi', tag: 'Crimson Velvet Fever', emoji: '🔥', badgeColor: 'from-red-600 via-rose-500 to-amber-500' },
     neko: { name: 'Mahi Neko', tag: 'Catgirl Headphones', emoji: '🐱', badgeColor: 'from-cyan-500 to-blue-600' },
     bunny: { name: 'Luna Usagi', tag: 'Kawaii Bunny', emoji: '🐰', badgeColor: 'from-pink-500 to-fuchsia-500' },
     angel: { name: 'Aria Tenshi', tag: 'Sweet Angel', emoji: '👼', badgeColor: 'from-amber-400 to-yellow-500' },
@@ -1058,7 +1089,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
 
   // Determine current image for Live Portrait mode
   const getPortraitSrc = () => {
-    if (currentAction === 'kiss') return '/anime/mahi_kiss.jpg';
+    if (currentAction === 'kiss' || currentAction === 'hot' || cuteStyle === 'siren') return '/anime/mahi_kiss.jpg';
     if (state === 'speaking') return '/anime/mahi_talking.jpg';
     return '/anime/mahi_wink.jpg';
   };
@@ -1109,11 +1140,21 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
             {/* Glowing fairy aura & audio reactivity */}
             <div
               className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
-                state === 'speaking'
+                cuteStyle === 'siren' || currentAction === 'hot'
+                  ? 'bg-gradient-to-t from-red-950/85 via-rose-600/25 to-amber-500/10'
+                  : state === 'speaking'
                   ? 'bg-gradient-to-t from-rose-950/80 via-rose-500/15 to-transparent'
                   : 'bg-gradient-to-t from-black/70 via-transparent to-transparent'
               }`}
             />
+
+            {/* Hot Siren Fever Badge on Portrait */}
+            {(cuteStyle === 'siren' || currentAction === 'hot') && (
+              <div className="absolute top-3 left-3 pointer-events-none z-20 flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-red-600/90 to-rose-600/90 border border-amber-300/60 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/40 animate-pulse">
+                <Flame className="w-3 h-3 text-amber-300 fill-amber-300" />
+                <span>Hot Mode 🔥</span>
+              </div>
+            )}
 
             {/* Fairy Light Sparkles Overlay */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -1243,7 +1284,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
 
       {/* Character Outfits/Styles Selector */}
       <div className="absolute top-1 right-2 z-20 flex flex-col gap-1">
-        {(['reference', 'neko', 'bunny', 'angel', 'sakura'] as CuteGirlStyle[]).map((styleKey) => {
+        {(['reference', 'siren', 'neko', 'bunny', 'angel', 'sakura'] as CuteGirlStyle[]).map((styleKey) => {
           const isSelected = cuteStyle === styleKey;
           const conf = cuteGirlsConfig[styleKey];
           return (
@@ -1252,7 +1293,11 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectCuteStyle(styleKey);
-                onHeartBurst();
+                if (styleKey === 'siren') {
+                  triggerCuteAction('hot');
+                } else {
+                  onHeartBurst();
+                }
               }}
               title={conf.name}
               className={`w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all duration-300 backdrop-blur-md shadow-md ${
@@ -1267,15 +1312,15 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
         })}
       </div>
 
-      {/* Cute Interactions Dock (Kiss, Pet, Pout, Cheer) */}
-      <div className="absolute bottom-6 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-xl">
+      {/* Cute & Hot Interactions Dock (Kiss, Hot, Pet, Pout, Cheer) */}
+      <div className="absolute bottom-6 z-20 flex items-center gap-1 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-xl">
         <button
           onClick={(e) => {
             e.stopPropagation();
             triggerCuteAction('kiss');
           }}
-          className="flex items-center gap-1 text-[10px] font-bold text-rose-300 hover:text-white px-2 py-0.5 rounded-full hover:bg-rose-500/30 transition-colors"
-          title="Blow kiss"
+          className="flex items-center gap-1 text-[10px] font-bold text-rose-300 hover:text-white px-1.5 py-0.5 rounded-full hover:bg-rose-500/30 transition-colors cursor-pointer"
+          title="Blow passionate kiss"
         >
           <span>💋</span>
           <span>Kiss</span>
@@ -1286,9 +1331,24 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            onSelectCuteStyle('siren');
+            triggerCuteAction('hot');
+          }}
+          className="flex items-center gap-1 text-[10px] font-extrabold text-amber-300 hover:text-white px-2 py-0.5 rounded-full bg-gradient-to-r from-red-600/40 to-rose-600/40 hover:from-red-500 hover:to-rose-500 border border-rose-400/40 transition-all cursor-pointer shadow-sm shadow-red-500/30"
+          title="Hot & Flirty Fever Mode"
+        >
+          <span>🔥</span>
+          <span>Hot</span>
+        </button>
+
+        <span className="w-1 h-1 rounded-full bg-white/20" />
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             triggerCuteAction('headpat');
           }}
-          className="flex items-center gap-1 text-[10px] font-bold text-pink-300 hover:text-white px-2 py-0.5 rounded-full hover:bg-pink-500/30 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-bold text-pink-300 hover:text-white px-1.5 py-0.5 rounded-full hover:bg-pink-500/30 transition-colors cursor-pointer"
           title="Pet head"
         >
           <span>🥰</span>
@@ -1302,7 +1362,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
             e.stopPropagation();
             triggerCuteAction('pout');
           }}
-          className="flex items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-white px-2 py-0.5 rounded-full hover:bg-amber-500/30 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-white px-1.5 py-0.5 rounded-full hover:bg-amber-500/30 transition-colors cursor-pointer"
           title="Cute pout"
         >
           <span>🥺</span>
@@ -1316,7 +1376,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
             e.stopPropagation();
             triggerCuteAction('cheer');
           }}
-          className="flex items-center gap-1 text-[10px] font-bold text-cyan-300 hover:text-white px-2 py-0.5 rounded-full hover:bg-cyan-500/30 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-bold text-cyan-300 hover:text-white px-1.5 py-0.5 rounded-full hover:bg-cyan-500/30 transition-colors cursor-pointer"
           title="Cheer up"
         >
           <span>✨</span>
