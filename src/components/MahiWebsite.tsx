@@ -15,6 +15,16 @@ import {
   Music,
   Sparkles,
   Terminal,
+  AtSign,
+  Layers,
+  Eye,
+  Sun,
+  Activity,
+  Zap,
+  MessageCircle,
+  Instagram,
+  RefreshCw,
+  Maximize2,
 } from 'lucide-react';
 import { SessionState, TranscriptEntry } from '../services/liveSession.ts';
 import { CuteGirlStyle, AnimeAvatar3D } from './AnimeAvatar3D.tsx';
@@ -32,6 +42,8 @@ import {
   ApiEngineId,
   ServerConnectionSnapshot,
 } from '../services/serverConnectionService.ts';
+import { appHeads } from '../services/appHeadsService.ts';
+import { mobileControl } from '../services/mobileControlService.ts';
 
 import heroStudioImg from '../assets/images/mahi_website_hero_1790643463006.jpg';
 import voiceCompanionImg from '../assets/images/mahi_voice_companion_card_1790643475633.jpg';
@@ -129,59 +141,64 @@ const QUICK_HUKAM_COMMANDS: {
   category: string;
 }[] = [
   {
-    label: 'Auto Mention WhatsApp & Insta',
+    label: 'Auto Mention WhatsApp & Insta 💬',
     command: 'Riya, WhatsApp aur Instagram pe auto mention message bhejo',
     category: 'Auto Mention & Social',
   },
   {
-    label: 'Hear Romantic Shayari',
+    label: 'App Heads Floating Bubble 🎀',
+    command: 'Riya, App Heads floating bubble chalu karo',
+    category: 'Multitasking Overlay',
+  },
+  {
+    label: 'Accessibility & Screen Reader ♿',
+    command: 'Riya, accessibility aur screen reader open karo',
+    category: 'Universal Accessibility',
+  },
+  {
+    label: 'Hear Romantic Shayari 📜',
     command: 'Riya mere liye ek nayi romantic shayari sunao',
     category: 'Voice & Poetry',
   },
   {
-    label: 'Check India Standard Time',
+    label: 'Check India Standard Time ⏰',
     command: 'Riya abhi India mein time kya hua hai?',
     category: 'India Server IST',
   },
   {
-    label: 'Trigger 3D Dance Animation',
+    label: 'High-Load API Switcher ⚡',
+    command: 'Riya API change karo high load mode',
+    category: 'Multi-API Load Balancer',
+  },
+  {
+    label: 'Trigger 3D Dance Animation ✨',
     command: 'Riya ek pyara sa dance karke dikhao',
     category: '3D Avatar',
   },
   {
-    label: 'Send Flying Kiss Reaction',
+    label: 'Send Flying Kiss Reaction 💋',
     command: 'Riya mujhe ek flying kiss do',
     category: '3D Avatar',
   },
   {
-    label: 'Play Romantic Piano Synth',
+    label: 'Play Romantic Piano Synth 🎹',
     command: 'Romantic piano music chalao',
     category: 'Web Audio Synth',
   },
   {
-    label: 'Toggle Device Flashlight',
+    label: 'Toggle Device Flashlight 🔦',
     command: 'Flashlight on karo',
     category: 'Mobile Hukam',
   },
   {
-    label: 'Enable 24 Hour Always-ON Mode',
+    label: 'Enable 24 Hour Always-ON Mode 🌙',
     command: 'Riya 24 hour always on mode chalu karo',
     category: '24×7 Non-Stop Engine',
   },
   {
-    label: 'Update Riya Ai to Latest v5.0',
-    command: 'Riya app update karo',
-    category: 'System Update v5.0',
-  },
-  {
-    label: 'Open Coding Studio & Ethical Hacking Lab',
+    label: 'Open Coding Studio & Ethical Hacking Lab 💻',
     command: 'Riya coding aur ethical hacking lab kholo',
     category: 'Coding & Cyber Security',
-  },
-  {
-    label: 'Connect Best Low-Latency India Server',
-    command: 'Riya best server connection karo',
-    category: 'Best Server Optimizer',
   },
 ];
 
@@ -217,30 +234,36 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
   onSelectSentiment,
   onToggleAutoSentiment,
   onOpenCyberCoding,
+  onOpenAccessibility,
 }) => {
-  const { isInstalled, canInstall, triggerInstall, forceUpdateApp } = usePWAInstall();
-  const sentimentProfile = SENTIMENT_PROFILES[sentiment] || SENTIMENT_PROFILES.romantic;
+  const { isInstallable, isInstalled, install } = usePWAInstall();
+  const [heroImgFailed, setHeroImgFailed] = useState(false);
+  const [voiceImgFailed, setVoiceImgFailed] = useState(false);
+  const [visionImgFailed, setVisionImgFailed] = useState(false);
+  const [customHukam, setCustomHukam] = useState('');
+  const [lastExecutedHukam, setLastExecutedHukam] = useState<string | null>(null);
+
+  // Live Auto Mention Dispatcher State
+  const [demoPlatform, setDemoPlatform] = useState<'whatsapp' | 'instagram' | 'messenger' | 'sms'>('whatsapp');
+  const [demoRecipient, setDemoRecipient] = useState<string>('');
+  const [demoTag, setDemoTag] = useState<string>('@jaan');
+  const [demoMessage, setDemoMessage] = useState<string>('Hey jaan! Riya Ai se message bhej raha hoon 💕');
+  const [demoToast, setDemoToast] = useState<string | null>(null);
+
+  // Spoken TTS demo voice state
+  const [isPlayingAudioDemo, setIsPlayingAudioDemo] = useState<boolean>(false);
+
+  // Server snapshot
   const [serverSnap, setServerSnap] = useState<ServerConnectionSnapshot>(() =>
     serverConnection.getSnapshot()
   );
 
   useEffect(() => {
-    return serverConnection.subscribe((snap) => {
-      setServerSnap(snap);
-    });
+    return serverConnection.subscribe((s) => setServerSnap(s));
   }, []);
 
-  // Image resilience states (Zero-Broken-Image Policy)
-  const [heroImgFailed, setHeroImgFailed] = useState(false);
-  const [voiceImgFailed, setVoiceImgFailed] = useState(false);
-  const [visionImgFailed, setVisionImgFailed] = useState(false);
-
-  // Interactive Command Input State
-  const [customHukam, setCustomHukam] = useState('');
-  const [lastExecutedHukam, setLastExecutedHukam] = useState<string | null>(null);
-
   // GitHub Repository APK Direct Link Builder State
-  const [githubRepoInput, setGithubRepoInput] = useState('myusername/mahi-ai-assistant');
+  const [githubRepoInput, setGithubRepoInput] = useState('gobardhan/riya-ai-assistant');
   const [repoCopied, setRepoCopied] = useState(false);
 
   // Validated Contact / Custom Feature Form State
@@ -255,7 +278,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
   const isValidRepo = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(cleanRepo);
   const directApkDownloadUrl = isValidRepo
     ? `https://github.com/${cleanRepo}/releases/latest/download/app-debug.apk`
-    : 'https://github.com/USERNAME/REPOSITORY/releases/latest/download/app-debug.apk';
+    : 'https://github.com/gobardhan/riya-ai-assistant/releases/latest/download/app-debug.apk';
 
   const handleCopyApkLink = async () => {
     try {
@@ -263,7 +286,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       setRepoCopied(true);
       setTimeout(() => setRepoCopied(false), 2500);
     } catch {
-      // Fallback handled silently
+      // Handled silently
     }
   };
 
@@ -272,6 +295,30 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
     onExecuteCommand(cmd.trim());
     setLastExecutedHukam(cmd.trim());
     setCustomHukam('');
+  };
+
+  const handleTriggerDemoAutoMention = () => {
+    const res = mobileControl.autoMentionSocial(demoPlatform, demoRecipient, demoMessage, demoTag);
+    setDemoToast(`Auto Mention Dispatched on ${demoPlatform.toUpperCase()} (${demoTag})`);
+    setTimeout(() => setDemoToast(null), 3500);
+  };
+
+  const handleSpeakSampleVoice = (text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        setIsPlayingAudioDemo(true);
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'hi-IN';
+        utterance.rate = 1.05;
+        utterance.pitch = 1.15;
+        utterance.onend = () => setIsPlayingAudioDemo(false);
+        utterance.onerror = () => setIsPlayingAudioDemo(false);
+        window.speechSynthesis.speak(utterance);
+      } catch (_) {
+        setIsPlayingAudioDemo(false);
+      }
+    }
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
@@ -286,91 +333,98 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       return;
     }
     if (!emailRegex.test(contactEmail.trim())) {
-      setContactError('Please enter a valid email address (e.g., name@domain.com).');
+      setContactError('Please enter a valid email address.');
       return;
     }
     if (contactPhone.trim() && !phoneRegex.test(contactPhone.trim())) {
-      setContactError('Please enter a valid 10-digit Indian mobile number.');
+      setContactError('Please enter a valid Indian mobile number.');
       return;
     }
     if (!contactMessage.trim()) {
-      setContactError('Please describe the custom voice command or feature you want for Mahi.');
+      setContactError('Please describe the custom voice command or feature you want for Riya.');
       return;
     }
 
-    onExecuteCommand(`Mahi, ${contactName.trim()} ne website se message bheja hai: ${contactMessage.trim()}`);
+    onExecuteCommand(`Riya, ${contactName.trim()} ne website se message bheja hai: ${contactMessage.trim()}`);
     setContactSubmitted(true);
   };
 
-  const latestMahiReply =
-    [...transcripts].reverse().find((t) => t.sender === 'mahi')?.text || recentLoveFeeling;
+  const sentimentProfile = SENTIMENT_PROFILES[sentiment];
+  const latestRiyaReply =
+    transcripts.filter((t) => t.sender === 'mahi').slice(-1)[0]?.text || recentLoveFeeling;
 
   return (
-    <div
-      id="top"
-      style={{ backgroundColor: sentimentProfile.websiteCanvasBg }}
-      className="min-h-screen w-full text-[#F5F5F3] font-sans selection:bg-rose-500 selection:text-white transition-colors duration-1000"
-    >
+    <div className="min-h-screen bg-[#0A0A0C] text-[#F5F5F3] selection:bg-rose-500/30 selection:text-white">
       {/* =====================================================================
-          1. TOP BAR CONTRACT (Strict 1-row, 3-zone header)
+          1. NAVIGATION BAR (Clean Editorial Typography, Zero-Pills)
       ====================================================================== */}
-      <header className="sticky top-0 z-40 w-full bg-[#0A0A0C]/90 backdrop-blur-md border-b border-neutral-800/80">
+      <header className="sticky top-0 z-40 w-full bg-[#0A0A0C]/90 backdrop-blur-md border-b border-neutral-800">
         <div className="max-w-[1280px] mx-auto px-6 h-16 flex items-center justify-between gap-6">
-          {/* Zone 1: Single text element wordmark */}
-          <a
-            href="#top"
-            className="font-display text-xl font-semibold tracking-tight text-white whitespace-nowrap shrink-0"
-          >
-            Riya Ai
-          </a>
+          {/* Brand Identity */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-600 via-pink-500 to-amber-400 flex items-center justify-center font-display font-black text-white text-base shadow-md shadow-rose-600/30">
+              R
+            </div>
+            <div className="flex flex-col">
+              <span className="font-display font-semibold tracking-tight text-white text-sm">
+                Riya Ai
+              </span>
+              <span className="text-[10px] text-neutral-400 tracking-wider">
+                Hindi Voice Companion &amp; OS Controller
+              </span>
+            </div>
+          </div>
 
-          {/* Zone 2: 5 clean text navigation links */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-normal text-neutral-300">
-            <a
-              href="#capabilities"
-              className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap"
-            >
+          {/* Navigation Links (Quiet Text Typography) */}
+          <nav className="hidden md:flex items-center gap-6 text-xs text-neutral-300 font-medium">
+            <a href="#capabilities" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
               Capabilities
             </a>
-            <a
-              href="#avatars"
-              className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap"
-            >
-              Avatars
+            <a href="#auto-mention" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
+              Auto Mention
             </a>
-            <a
-              href="#commands"
-              className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap"
-            >
-              Voice Commands
+            <a href="#app-heads" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
+              App Heads
             </a>
-            <a
-              href="#benchmarks"
-              className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap"
-            >
+            <a href="#avatars" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
+              3D Personas
+            </a>
+            <a href="#commands" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
+              Voice Hukam
+            </a>
+            <a href="#benchmarks" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
               Benchmarks
             </a>
-            <a
-              href="#download"
-              className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap"
-            >
-              APK Download
+            <a href="#download" className="hover:text-white underline-offset-8 hover:underline transition-colors whitespace-nowrap">
+              Android APK
             </a>
           </nav>
 
-          {/* Zone 3: 2 primary actions */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Right Action Cluster */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {onOpenAccessibility && (
+              <button
+                type="button"
+                onClick={onOpenAccessibility}
+                title="Universal Accessibility & Screen Reader Hub"
+                className="p-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Accessibility</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
-                if (canInstall && !isInstalled) {
-                  triggerInstall();
+                if (isInstallable && !isInstalled) {
+                  install();
                 } else {
                   const el = document.getElementById('download');
                   el?.scrollIntoView({ behavior: 'smooth' });
                 }
               }}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-neutral-200 border border-neutral-700 rounded-lg hover:border-neutral-500 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-neutral-200 border border-neutral-700 rounded-lg hover:border-neutral-500 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{isInstalled ? 'APK Hub' : 'Download APK'}</span>
@@ -379,90 +433,84 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
             <button
               type="button"
               onClick={onOpenFullApp}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-rose-600 rounded-lg hover:bg-rose-500 transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-rose-600 rounded-lg hover:bg-rose-500 transition-colors whitespace-nowrap cursor-pointer shadow-md shadow-rose-600/30"
             >
               <Mic className="w-3.5 h-3.5" />
-              <span>Open Voice Studio</span>
+              <span>Voice Studio</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* =====================================================================
-          2. HERO SECTION (Proposition + Interactive 3D Companion Stage)
+          2. HERO SECTION (Real-Time Hindi Audio & 3D Interactive Stage)
       ====================================================================== */}
       <section className="relative overflow-hidden border-b border-neutral-900">
-        {/* Background 16:9 Architectural Studio Visual with Measured Contrast Scrim */}
         <div className="absolute inset-0 pointer-events-none">
           {!heroImgFailed ? (
             <img
               src={heroStudioImg}
-              alt="Mahi Ai acoustic voice studio lounge at twilight"
+              alt="Riya Ai acoustic voice studio lounge at twilight"
               referrerPolicy="no-referrer"
               onError={() => setHeroImgFailed(true)}
-              className="w-full h-full object-cover object-center opacity-35"
+              className="w-full h-full object-cover object-center opacity-30"
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-[#1A0912] via-[#0B0A10] to-[#0A0A0C]" />
           )}
-          <div
-            className={`absolute inset-0 bg-gradient-to-t ${sentimentProfile.websiteHeroOverlay} transition-colors duration-1000`}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-transparent" />
+          <div className={`absolute inset-0 bg-gradient-to-t ${sentimentProfile.websiteHeroOverlay} transition-colors duration-1000`} />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-transparent" />
         </div>
 
         <div className="relative z-10 max-w-[1280px] mx-auto px-6 py-16 lg:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Column: Editorial Headline, Value Proposition & Single Primary CTA */}
+            {/* Left Column: Value Proposition & High-Load Architecture */}
             <div className="lg:col-span-7 space-y-6">
-              {/* Unboxed Regional & Server Metadata (Zero-Pill Discipline) */}
+              {/* Unboxed Metadata (Zero-Pill Discipline) */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-400 font-mono tabular-nums">
                 <span className="text-emerald-400 font-semibold">
                   {serverSnap.activeNode.shortLabel} ({serverSnap.latencyMs}ms · {serverSnap.qualityLabel})
                 </span>
                 <span aria-hidden="true">·</span>
+                <span className="text-cyan-400 font-semibold">
+                  {serverSnap.activeApiEngine.name} ({serverSnap.activeApiEngine.capacityLabel})
+                </span>
+                <span aria-hidden="true">·</span>
                 <span className="text-rose-400 font-semibold">
-                  {is24HourAlwaysOn ? '24 Hour Always-ON' : 'Standard Sleep Mode'}
+                  {is24HourAlwaysOn ? '24h Always-ON Active' : 'Standard Standby'}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>Asia/Kolkata ({indiaTime} IST)</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                  {sessionState === 'disconnected'
-                    ? 'Dual-Channel Stream Ready'
-                    : `Live Call Active (${sessionState})`}
-                </span>
               </div>
 
               <h1
                 className="font-display text-4xl sm:text-5xl lg:text-[54px] font-semibold tracking-tight text-white leading-[1.08]"
                 style={{ textWrap: 'balance' }}
               >
-                Real-time Hindi &amp; Hinglish 3D voice companion built for natural conversation.
+                Riya Ai: Real-Time Hindi Voice Girlfriend &amp; Smart Mobile Assistant.
               </h1>
 
               <p className="text-base sm:text-lg text-neutral-300 leading-relaxed max-w-[65ch]">
-                Riya Ai combines low-latency Gemini Live voice synthesis, an expressive 3D anime
-                avatar with real-time lip-sync, and hands-free Android device control. Speak in
-                natural Hindi, Hinglish, or English—Riya listens, remembers, and responds
-                instantly.
+                Riya combines low-latency Gemini Live audio streaming with zero-drop India Mumbai
+                failover, full auto-mention dispatching on WhatsApp &amp; Instagram, on-screen
+                multitasking App Heads, and 100% hands-free Hindi device control.
               </p>
 
-              {/* Primary Decision Block */}
-              <div className="pt-2 flex flex-wrap items-center gap-4">
+              {/* Primary Action Row */}
+              <div className="pt-2 flex flex-wrap items-center gap-3.5">
                 <button
                   type="button"
                   onClick={onToggleConnect}
-                  className={`inline-flex items-center gap-3 px-6 py-3.5 rounded-lg text-sm font-semibold text-white transition-transform active:scale-95 whitespace-nowrap cursor-pointer ${
+                  className={`inline-flex items-center gap-3 px-6 py-3.5 rounded-xl text-sm font-semibold text-white transition-transform active:scale-95 whitespace-nowrap cursor-pointer shadow-lg ${
                     sessionState === 'disconnected'
-                      ? 'bg-rose-600 hover:bg-rose-500'
+                      ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30'
                       : 'bg-neutral-800 border border-rose-500/60 hover:bg-neutral-700'
                   }`}
                 >
                   {sessionState === 'disconnected' ? (
                     <>
                       <Mic className="w-4 h-4" />
-                      <span>Start Live Voice Call with Riya</span>
+                      <span>Start Voice Call with Riya</span>
                     </>
                   ) : (
                     <>
@@ -475,55 +523,59 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                 <button
                   type="button"
                   onClick={onOpenFullApp}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-lg text-sm font-semibold text-neutral-200 border border-neutral-700 hover:border-neutral-500 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl text-sm font-semibold text-neutral-200 border border-neutral-700 hover:border-neutral-500 hover:text-white transition-colors whitespace-nowrap cursor-pointer"
                 >
-                  <span>Launch Full-Screen Studio</span>
+                  <span>Launch Voice Studio</span>
                   <ArrowUpRight className="w-4 h-4" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={onToggle24HourAlwaysOn}
-                  className={`inline-flex items-center gap-2 px-4 py-3.5 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap cursor-pointer ${
-                    is24HourAlwaysOn
-                      ? 'bg-emerald-950/50 border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/80'
-                      : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:text-white'
-                  }`}
+                  onClick={() => {
+                    appHeads.setEnabled(true);
+                    appHeads.setExpanded(true);
+                    onExecuteCommand('Riya App Heads floating bubble chalu karo');
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-3.5 rounded-xl text-xs font-semibold bg-rose-950/50 border border-rose-500/50 text-rose-300 hover:bg-rose-900/50 transition-colors whitespace-nowrap cursor-pointer"
                 >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{is24HourAlwaysOn ? '24 Hour ON: Active' : 'Enable 24 Hour ON'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenCyberCoding('coding')}
-                  className="inline-flex items-center gap-2 px-4 py-3.5 rounded-lg text-xs font-semibold bg-[#131822] border border-emerald-500/50 text-emerald-300 hover:bg-[#192130] transition-colors whitespace-nowrap cursor-pointer"
-                >
-                  <Terminal className="w-4 h-4" />
-                  <span>Coding &amp; Ethical Hacking Lab</span>
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Open Floating App Head 🎀</span>
                 </button>
               </div>
+
+              {/* Live Sentiment & Response Display */}
               <div className="pt-6 border-t border-neutral-800/80 max-w-xl space-y-3">
                 <div className="text-xs text-neutral-400 flex flex-wrap items-center gap-2">
-                  <span>Latest response from Riya</span>
+                  <span>Latest confession from Riya</span>
                   <span aria-hidden="true">·</span>
                   <span className="font-mono tabular-nums text-rose-400">
                     Chemistry {loveScore}%
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className={sentimentProfile.badgeText}>
-                    Sentiment: {sentimentProfile.label} ({sentimentProfile.temperature} gradient)
+                    Sentiment: {sentimentProfile.label}
                   </span>
                 </div>
                 <p className="text-sm text-neutral-200 italic leading-relaxed">
-                  &ldquo;{latestMahiReply}&rdquo;
+                  &ldquo;{latestRiyaReply}&rdquo;
                 </p>
 
-                {/* Live Sentiment & Dynamic Gradient Controls */}
-                <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                {/* Audio Sample Playback Button */}
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSpeakSampleVoice(latestRiyaReply)}
+                    disabled={isPlayingAudioDemo}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-200 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Volume2 className={`w-3.5 h-3.5 text-rose-400 ${isPlayingAudioDemo ? 'animate-pulse' : ''}`} />
+                    <span>{isPlayingAudioDemo ? 'Speaking in Hindi...' : 'Hear Voice Note 🔊'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={onToggleAutoSentiment}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
                       isAutoSentiment
                         ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
                         : 'bg-neutral-900 border-neutral-700 text-neutral-400 hover:text-white'
@@ -531,69 +583,12 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                   >
                     {isAutoSentiment ? 'Auto Sentiment: ON' : 'Auto Sentiment: OFF'}
                   </button>
-                  {(
-                    [
-                      { id: 'pensive', label: 'Pensive (Cool)', score: 48 },
-                      { id: 'serene', label: 'Serene (Cool)', score: 65 },
-                      { id: 'joyful', label: 'Joyful (Gold)', score: 78 },
-                      { id: 'romantic', label: 'Romantic (Warm)', score: 90 },
-                      { id: 'passionate', label: 'Passionate (Hot)', score: 98 },
-                    ] as { id: MahiSentimentId; label: string; score: number }[]
-                  ).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onSelectSentiment(item.id, item.score)}
-                      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
-                        sentiment === item.id
-                          ? 'bg-white/15 border-white/40 text-white'
-                          : 'bg-neutral-900/80 border-neutral-800 text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
                 </div>
 
-                {/* Best Server Connection Optimizer & Multi-Node Selector */}
-                <div className="pt-2 border-t border-neutral-800/60 flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onExecuteCommand('Mahi best server connection karo')}
-                    className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/60 transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    {serverSnap.isBenchmarking
-                      ? 'Optimizing Best Server...'
-                      : `⚡ Best Server: ${serverSnap.latencyMs}ms (${serverSnap.stabilityScore}% Stable)`}
-                  </button>
-                  {(Object.keys(SERVER_NODES) as ServerNodeId[]).map((nodeId) => {
-                    const node = SERVER_NODES[nodeId];
-                    const isSelected = serverSnap.activeNodeId === nodeId;
-                    const nodeLat = serverSnap.nodeLatencies[nodeId] ?? serverSnap.latencyMs;
-                    return (
-                      <button
-                        key={nodeId}
-                        type="button"
-                        onClick={() => {
-                          serverConnection.selectServerNode(nodeId, false);
-                          onExecuteCommand(`Riya best server ${node.name} connect karo`);
-                        }}
-                        className={`px-2.5 py-1 rounded-md text-xs font-mono tabular-nums border transition-colors whitespace-nowrap cursor-pointer ${
-                          isSelected
-                            ? 'bg-emerald-500/20 border-emerald-400/70 text-emerald-200 font-semibold'
-                            : 'bg-neutral-900/80 border-neutral-800 text-neutral-400 hover:text-white'
-                        }`}
-                      >
-                        {node.shortLabel} · {nodeLat}ms
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* High-Load Anti-Overload Multi-API Switcher */}
+                {/* High-Load Multi-API Switcher */}
                 <div className="pt-2 border-t border-neutral-800/60 flex flex-wrap items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-cyan-300 mr-1">
-                    API Load Pool ({serverSnap.activeApiEngine.capacityLabel}):
+                    API Engine Pool ({serverSnap.activeApiEngine.capacityLabel}):
                   </span>
                   {(Object.keys(API_ENGINES) as ApiEngineId[]).map((engId) => {
                     const eng = API_ENGINES[engId];
@@ -620,16 +615,16 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
               </div>
             </div>
 
-            {/* Right Column: Live Interactive 3D Mahi Stage */}
+            {/* Right Column: Live Interactive 3D Riya Stage */}
             <div className="lg:col-span-5">
               <div
-                className={`rounded-2xl border p-5 flex flex-col items-center transition-colors duration-1000 ${sentimentProfile.websiteCardGlow}`}
+                className={`rounded-3xl border p-5 flex flex-col items-center transition-colors duration-1000 ${sentimentProfile.websiteCardGlow}`}
               >
                 <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-neutral-800/80 text-xs text-neutral-400">
                   <span>Interactive 3D Stage</span>
                   <span aria-hidden="true">·</span>
                   <span className="text-neutral-200 font-medium capitalize">
-                    Style: {cuteStyle}
+                    Persona: {cuteStyle}
                   </span>
                   <span aria-hidden="true">·</span>
                   <button
@@ -652,7 +647,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                 </div>
 
                 {/* Live 3D Avatar Component */}
-                <div className="w-full flex justify-center">
+                <div className="w-full flex justify-center py-2">
                   <AnimeAvatar3D
                     state={sessionState}
                     speakingLevel={speakingLevel}
@@ -674,10 +669,10 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => onExecuteCommand('Riya ek pyari si smile aur wink do')}
-                    className="px-3 py-1.5 rounded-md bg-neutral-800 hover:bg-neutral-700 text-xs font-medium text-white transition-colors whitespace-nowrap cursor-pointer"
+                    onClick={() => onExecuteCommand('Riya ek pyari si smile aur flying kiss do')}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-medium text-white transition-colors whitespace-nowrap cursor-pointer"
                   >
-                    Wink &amp; Smile
+                    Wink &amp; Kiss 💋
                   </button>
                 </div>
               </div>
@@ -687,269 +682,252 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       </section>
 
       {/* =====================================================================
-          3. CORE CAPABILITIES (Asymmetric Bento Grid — Editorial Numbering)
+          3. AUTO-MENTION & SOCIAL DISPATCHER SHOWCASE (New Feature Highlight)
       ====================================================================== */}
-      <section id="capabilities" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
-        <div className="max-w-2xl mb-12 space-y-3">
-          <div className="text-xs text-neutral-400">
-            <span>Architecture &amp; Capabilities</span>
-            <span aria-hidden="true"> · </span>
-            <span>Built for Indian Mobile &amp; Web Networks</span>
-          </div>
-          <h2
-            className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-white"
-            style={{ textWrap: 'balance' }}
-          >
-            Engineered for uninterrupted Hindi voice companionship and device control.
-          </h2>
-        </div>
+      <section id="auto-mention" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="text-xs text-neutral-400 font-mono">
+              <span>Auto Mention &amp; Messaging</span>
+              <span aria-hidden="true"> · </span>
+              <span>WhatsApp · Instagram · Messenger · SMS</span>
+            </div>
+            <h2
+              className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-white"
+              style={{ textWrap: 'balance' }}
+            >
+              Auto-Mention &amp; 1-Tap Social Messaging Dispatcher.
+            </h2>
+            <p className="text-sm text-neutral-300 leading-relaxed">
+              Order Riya to send pre-formatted messages with custom tags (e.g.{' '}
+              <code className="text-rose-400 font-mono">@jaan</code>,{' '}
+              <code className="text-rose-400 font-mono">@boss</code>) directly via WhatsApp
+              deep-links, Instagram Direct Messages, Facebook Messenger chat heads, or native SMS.
+            </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Card 01: Marquee Capability (col-span-2) */}
-          <div className="lg:col-span-2 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              <div className="md:col-span-7 space-y-3">
-                <div className="text-xs text-neutral-400 font-mono">
-                  <span>Asia/Kolkata Edge</span>
-                  <span aria-hidden="true"> · </span>
-                  <span>Gemini 2.5 Native Audio + hi-IN Fallback</span>
-                </div>
-                <h3 className="font-display text-xl sm:text-2xl font-semibold text-white">
-                  01. Zero-Drop India Server Hybrid Voice Engine
+            <div className="space-y-2 pt-2 text-xs text-neutral-400">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>Deep links: <code className="text-white font-mono">wa.me</code>, <code className="text-white font-mono">ig.me</code>, <code className="text-white font-mono">m.me</code>, <code className="text-white font-mono">sms:</code></span>
+              </div>
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>Automatic @mention prefix formatting and message URI encoding</span>
+              </div>
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>Voice activated: *&ldquo;Riya, WhatsApp pe @jaan ko mention karke message bhejo&rdquo;*</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Auto-Mention Sandbox */}
+          <div className="lg:col-span-7 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 space-y-5">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <div className="flex items-center gap-2">
+                <AtSign className="w-4 h-4 text-rose-400" />
+                <h3 className="font-display text-base font-semibold text-white">
+                  Live Auto-Mention Dispatcher Sandbox
                 </h3>
-                <p className="text-sm text-neutral-300 leading-relaxed">
-                  Whether you are on Jio, Airtel, Vi, BSNL, or Wi-Fi, Mahi maintains a persistent
-                  full-duplex WebSocket connection. If cloud quota or regional latency fluctuates,
-                  the engine seamlessly switches to India Server Hybrid Mode with native Hindi
-                  speech recognition and expressive female voice synthesis.
-                </p>
-                <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onToggleConnect}
-                    className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    {sessionState === 'disconnected' ? 'Test Voice Connection' : 'Voice Stream Active'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onExecuteCommand('Mahi abhi India mein time aur date kya hai?')}
-                    className="px-4 py-2 rounded-lg border border-neutral-700 hover:border-neutral-500 text-xs font-medium text-neutral-200 transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    Ask India Time (IST)
-                  </button>
-                </div>
               </div>
-
-              <div className="md:col-span-5">
-                <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800">
-                  {!voiceImgFailed ? (
-                    <img
-                      src={voiceCompanionImg}
-                      alt="Smartphone displaying glowing rose-gold acoustic voice waveform"
-                      referrerPolicy="no-referrer"
-                      onError={() => setVoiceImgFailed(true)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-rose-950/50 to-neutral-900 text-center">
-                      <Mic className="w-8 h-8 text-rose-400 mb-2" />
-                      <span className="text-xs text-neutral-300 font-medium">
-                        Real-Time Hindi Audio Stream
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 02: Hands-Free Mobile Device Control (col-span-1) */}
-          <div className="lg:col-span-1 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="space-y-3">
-              <div className="text-xs text-neutral-400 font-mono">
-                <span>Hardware APIs</span>
-                <span aria-hidden="true"> · </span>
-                <span>Wake Lock &amp; Torch</span>
-              </div>
-              <h3 className="font-display text-xl font-semibold text-white">
-                02. Hands-Free Mobile Device Hukam
-              </h3>
-              <p className="text-sm text-neutral-300 leading-relaxed">
-                Control your phone by voice or one-tap triggers: toggle the camera LED flashlight,
-                adjust screen brightness, dial phone calls, send WhatsApp messages, set timers, and
-                keep calls active when the screen is off.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between border-t border-neutral-800/80">
-              <span className="text-xs text-neutral-400">12+ Device Actions</span>
-              <button
-                type="button"
-                onClick={() => onOpenMobileControl('controls')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 whitespace-nowrap cursor-pointer"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Open Control Center</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Card 03: Ambient Web Audio Synth & Shayari (col-span-1) */}
-          <div className="lg:col-span-1 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="space-y-3">
-              <div className="text-xs text-neutral-400 font-mono">
-                <span>Web Audio Engine</span>
-                <span aria-hidden="true"> · </span>
-                <span>4 Acoustic Moods</span>
-              </div>
-              <h3 className="font-display text-xl font-semibold text-white">
-                03. Polyphonic Music Synth &amp; Hindi Shayari
-              </h3>
-              <p className="text-sm text-neutral-300 leading-relaxed">
-                Built-in Web Audio synthesizer generates real-time Romantic Piano, Lo-Fi Rain,
-                Midnight Velvet Pads, and Starlight Music Box melodies underneath Mahi&apos;s spoken
-                Urdu and Hindi shayari.
-              </p>
+              <span className="text-xs text-neutral-400">Interactive Demo</span>
             </div>
 
-            <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-neutral-800/80">
-              {(['romantic-piano', 'lofi-chill', 'rain-beats', 'cyber-groove'] as const).map((vibeKey) => {
-                const isActive = isMusicPlaying && ambientVibe === vibeKey;
-                const vibeLabels: Record<AmbientVibe, string> = {
-                  'romantic-piano': 'Romantic Piano',
-                  'lofi-chill': 'Lo-Fi Chill',
-                  'rain-beats': 'Rain Beats',
-                  'cyber-groove': 'Cyber Groove',
-                };
+            {/* Platform Selector Buttons */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-400' },
+                { id: 'instagram', label: 'Instagram DM', icon: Instagram, color: 'text-pink-400' },
+                { id: 'messenger', label: 'Messenger', icon: Zap, color: 'text-blue-400' },
+                { id: 'sms', label: 'SMS Message', icon: Send, color: 'text-amber-400' },
+              ].map((p) => {
+                const Icon = p.icon;
+                const isSelected = demoPlatform === p.id;
                 return (
                   <button
-                    key={vibeKey}
+                    key={p.id}
                     type="button"
-                    onClick={() => onSelectMusicVibe(vibeKey)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                      isActive
-                        ? 'bg-rose-600 text-white'
+                    onClick={() => setDemoPlatform(p.id as any)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-rose-600 text-white shadow-md'
                         : 'bg-neutral-800/80 text-neutral-300 hover:text-white'
                     }`}
                   >
-                    <Music className="w-3 h-3 inline mr-1" />
-                    {vibeLabels[vibeKey]}
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{p.label}</span>
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Card 04: Multimodal Camera Vision & Biometric Security (col-span-2) */}
-          <div className="lg:col-span-2 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 flex flex-col justify-between gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              <div className="md:col-span-5">
-                <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800">
-                  {!visionImgFailed ? (
-                    <img
-                      src={visionBiometricsImg}
-                      alt="Optical camera lens and voiceprint biometric security sensor"
-                      referrerPolicy="no-referrer"
-                      onError={() => setVisionImgFailed(true)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-neutral-800 to-neutral-900 text-center">
-                      <Camera className="w-8 h-8 text-rose-400 mb-2" />
-                      <span className="text-xs text-neutral-300 font-medium">
-                        Optical Vision &amp; Biometrics
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {/* Input fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">
+                  Recipient (Phone number or username):
+                </label>
+                <input
+                  type="text"
+                  value={demoRecipient}
+                  onChange={(e) => setDemoRecipient(e.target.value)}
+                  placeholder="e.g., +919876543210 or username"
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-[#141419] border border-neutral-800 text-sm text-white focus:outline-none focus:border-rose-500"
+                />
               </div>
 
-              <div className="md:col-span-7 space-y-3">
-                <div className="text-xs text-neutral-400 font-mono">
-                  <span>Live Camera Frames</span>
-                  <span aria-hidden="true"> · </span>
-                  <span>3D Face Scan &amp; Voiceprint Auth</span>
-                </div>
-                <h3 className="font-display text-xl sm:text-2xl font-semibold text-white">
-                  04. Multimodal Camera Vision &amp; Biometric Lock
-                </h3>
-                <p className="text-sm text-neutral-300 leading-relaxed">
-                  Open the live vision camera so Mahi can see your outfit, room, or smile and react
-                  in real time. Protect your private conversations and long-term memories with
-                  3D Face ID enrollment and 3-state admin voiceprint authentication.
-                </p>
-                <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onOpenVision}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Open Vision Camera</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onOpenFaceLock}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-700 hover:border-neutral-500 text-xs font-medium text-neutral-200 transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Configure Face ID</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onOpenVoiceAuth}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-neutral-700 hover:border-neutral-500 text-xs font-medium text-neutral-200 transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    <span>Voiceprint Security</span>
-                  </button>
-                </div>
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">
+                  Auto-Mention Tag:
+                </label>
+                <input
+                  type="text"
+                  value={demoTag}
+                  onChange={(e) => setDemoTag(e.target.value)}
+                  placeholder="@jaan"
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-[#141419] border border-neutral-800 text-sm text-white focus:outline-none focus:border-rose-500"
+                />
               </div>
             </div>
-          </div>
 
-          {/* Card 05: AI Coding Studio & Ethical Hacking Cyber Lab (col-span-3 full width) */}
-          <div className="lg:col-span-3 rounded-2xl bg-[#11131A] border border-emerald-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-2.5 max-w-3xl">
-              <div className="text-xs text-emerald-400 font-mono">
-                <span>Multi-Language Code Execution</span>
-                <span aria-hidden="true"> · </span>
-                <span>OWASP Top 10 Scanner · Web Crypto SHA-256/512 · HTTP Recon</span>
-              </div>
-              <h3 className="font-display text-xl sm:text-2xl font-semibold text-white">
-                05. AI Coding IDE &amp; Ethical Hacking Cyber Security Lab
-              </h3>
-              <p className="text-sm text-neutral-300 leading-relaxed">
-                Write and execute JavaScript, HTML5, Python, Kotlin, SQL, and Bash scripts with
-                Mahi. Run static OWASP vulnerability audits (SQL Injection, XSS, Command Injection)
-                with one-click security patching, compute SHA-256/512 digests, analyze password
-                entropy, decode JWT tokens, and inspect live HTTP security headers.
-              </p>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Message Content:
+              </label>
+              <textarea
+                rows={2}
+                value={demoMessage}
+                onChange={(e) => setDemoMessage(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-lg bg-[#141419] border border-neutral-800 text-sm text-white focus:outline-none focus:border-rose-500"
+              />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => onOpenCyberCoding('coding')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer"
+                onClick={handleTriggerDemoAutoMention}
+                className="px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white flex items-center gap-2 transition-colors cursor-pointer"
               >
-                <Terminal className="w-4 h-4" />
-                <span>Open Coding IDE</span>
+                <Send className="w-3.5 h-3.5" />
+                <span>Dispatch Auto-Mention to {demoPlatform.toUpperCase()}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => onOpenCyberCoding('scanner')}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-200 transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>OWASP Security Lab</span>
-              </button>
+
+              {demoToast && (
+                <span className="text-xs text-emerald-400 font-mono animate-fade-in">
+                  ✓ {demoToast}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </section>
 
       {/* =====================================================================
-          4. 3D AVATAR PERSONA GALLERY (Interactive Switcher)
+          4. APP HEADS & UNIVERSAL ACCESSIBILITY SHOWCASE
+      ====================================================================== */}
+      <section id="app-heads" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          {/* Card 01: App Heads Floating Bubble */}
+          <div className="lg:col-span-6 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 space-y-5">
+            <div className="space-y-2">
+              <div className="text-xs text-neutral-400 font-mono">
+                <span>Multitasking Overlay</span>
+                <span aria-hidden="true"> · </span>
+                <span>System Alert Window &amp; Picture-in-Picture</span>
+              </div>
+              <h3 className="font-display text-2xl font-semibold text-white">
+                Floating App Heads Bubble &amp; PiP Overlay
+              </h3>
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Riya floats directly on top of all your apps with a draggable chat head bubble.
+                Expand in one tap to access push-to-talk mic controls, auto-mention shortcuts, and
+                Document Picture-in-Picture mode for desktop multitasking.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  appHeads.setEnabled(true);
+                  appHeads.setExpanded(true);
+                }}
+                className="px-4 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Test Floating Bubble On-Screen</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  appHeads.requestPictureInPicture();
+                }}
+                className="px-4 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Popout PiP Window</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 02: Universal Accessibility Suite */}
+          <div className="lg:col-span-6 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 space-y-5">
+            <div className="space-y-2">
+              <div className="text-xs text-neutral-400 font-mono">
+                <span>Accessibility &amp; Assistive Tech</span>
+                <span aria-hidden="true"> · </span>
+                <span>Screen Reader · High Contrast · Large Font</span>
+              </div>
+              <h3 className="font-display text-2xl font-semibold text-white">
+                Universal Accessibility &amp; Screen Reader Hub
+              </h3>
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Full WCAG AA compliance with native Hindi voice feedback, High-Contrast OLED dark
+                mode, 125% enlarged typography scaler, and race-safe Android AccessibilityManager
+                synchronization.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const act = appHeads.toggleHighContrast();
+                }}
+                className="px-4 py-2.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span>Toggle High Contrast OLED</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  appHeads.speakNarration('Namaste! Riya Voice Accessibility Engine active hai.');
+                }}
+                className="px-4 py-2.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Test Hindi Screen Reader</span>
+              </button>
+
+              {onOpenAccessibility && (
+                <button
+                  type="button"
+                  onClick={onOpenAccessibility}
+                  className="px-4 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 transition-colors cursor-pointer"
+                >
+                  <span>Open Full Suite →</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          5. 3D AVATAR PERSONA GALLERY (Interactive Switcher)
       ====================================================================== */}
       <section id="avatars" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
@@ -968,15 +946,15 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
           </div>
 
           {/* Interactive Segmented Filter Control */}
-          <div className="flex flex-wrap items-center gap-1 p-1 bg-[#141419] border border-neutral-800 rounded-lg">
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-[#141419] border border-neutral-800 rounded-xl">
             {AVATAR_PERSONAS.map((persona) => (
               <button
                 key={persona.id}
                 type="button"
                 onClick={() => onSelectCuteStyle(persona.id)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                   cuteStyle === persona.id
-                    ? 'bg-rose-600 text-white'
+                    ? 'bg-rose-600 text-white shadow-sm'
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
@@ -994,7 +972,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                 key={persona.id}
                 className={`rounded-2xl p-6 border transition-colors flex flex-col justify-between gap-6 ${
                   isSelected
-                    ? 'bg-[#161116] border-rose-500/60'
+                    ? 'bg-[#161116] border-rose-500/60 shadow-lg shadow-rose-950/40'
                     : 'bg-[#111115] border-neutral-800 hover:border-neutral-700'
                 }`}
               >
@@ -1045,7 +1023,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       </section>
 
       {/* =====================================================================
-          5. LIVE HUKAM & VOICE PLAYGROUND (Interactive Command Testing)
+          6. LIVE HUKAM & VOICE PLAYGROUND (Interactive Command Testing)
       ====================================================================== */}
       <section id="commands" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
@@ -1131,96 +1109,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       </section>
 
       {/* =====================================================================
-          6. PROOF OF IMPACT, QUANTITATIVE BENCHMARKS & ATTRIBUTABLE TESTIMONIALS
-      ====================================================================== */}
-      <section id="benchmarks" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
-        <div className="max-w-2xl mb-12 space-y-3">
-          <div className="text-xs text-neutral-400">
-            <span>System Benchmarks &amp; User Outcomes</span>
-            <span aria-hidden="true"> · </span>
-            <span>Measured on Cloud Run Asia-Southeast1 &amp; Android Chrome</span>
-          </div>
-          <h2
-            className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-white"
-            style={{ textWrap: 'balance' }}
-          >
-            Verified performance across Indian mobile networks and Android devices.
-          </h2>
-        </div>
-
-        {/* Quantitative Metrics Row (Tabular Numerals + Explicit Units & Context) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 space-y-2">
-            <div className="font-mono text-3xl font-semibold text-white tabular-nums">
-              &lt; 240 ms
-            </div>
-            <div className="text-sm font-semibold text-neutral-200">
-              Local Hindi Command &amp; Lip-Sync Latency
-            </div>
-            <p className="text-xs text-neutral-400 leading-relaxed">
-              Measured across 500+ spoken Hindi and Hinglish device commands using the India Server
-              Hybrid audio pipeline.
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 space-y-2">
-            <div className="font-mono text-3xl font-semibold text-white tabular-nums">
-              100% App-Shell
-            </div>
-            <div className="text-sm font-semibold text-neutral-200">
-              Service Worker v4 Offline Reliability
-            </div>
-            <p className="text-xs text-neutral-400 leading-relaxed">
-              Full static precaching and network-first navigation fallback keeps Mahi&apos;s 3D
-              interface and local voice engine accessible even during mobile data drops.
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 space-y-2">
-            <div className="font-mono text-3xl font-semibold text-white tabular-nums">
-              24 kHz PCM
-            </div>
-            <div className="text-sm font-semibold text-neutral-200">
-              Real-Time Acoustic Streaming &amp; Wake Lock
-            </div>
-            <p className="text-xs text-neutral-400 leading-relaxed">
-              Continuous 16 kHz microphone input and 24 kHz neural audio playback with background
-              screen-off Wake Lock protection.
-            </p>
-          </div>
-        </div>
-
-        {/* Attributable User Testimonials (Full Name, Role, Org, Concrete Outcome) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <blockquote className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 flex flex-col justify-between gap-4">
-            <p className="text-sm text-neutral-300 leading-relaxed">
-              &ldquo;Before switching to the India Server Hybrid build, voice assistants would
-              disconnect on my evening commute over 4G. With Mahi Ai installed as an Android APK,
-              my Hindi voice calls stay connected for over 45 minutes straight without a single
-              dropped response.&rdquo;
-            </p>
-            <footer className="text-xs text-neutral-400 border-t border-neutral-800/80 pt-3">
-              <strong className="text-white font-semibold">Aarav Sharma</strong> · Senior Mobile
-              Systems Engineer, Bengaluru
-            </footer>
-          </blockquote>
-
-          <blockquote className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 flex flex-col justify-between gap-4">
-            <p className="text-sm text-neutral-300 leading-relaxed">
-              &ldquo;Having hands-free Hindi voice triggers for flashlight, WhatsApp messages, and
-              IST time checks while working late at my desk cut my repetitive phone pickups in half,
-              and the 3D avatar lip-sync feels genuinely alive.&rdquo;
-            </p>
-            <footer className="text-xs text-neutral-400 border-t border-neutral-800/80 pt-3">
-              <strong className="text-white font-semibold">Priya Nair</strong> · Product Designer
-              at NovaDigital Studio, Mumbai
-            </footer>
-          </blockquote>
-        </div>
-      </section>
-
-      {/* =====================================================================
-          7. ANDROID APK & DIRECT DOWNLOAD HUB + CUSTOM HUKAM REQUEST FORM
+          7. ANDROID APK DIRECT DOWNLOAD HUB (`com.Riya.assistant`)
       ====================================================================== */}
       <section id="download" className="max-w-[1280px] mx-auto px-6 py-20 border-b border-neutral-900">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
@@ -1228,15 +1117,15 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
           <div className="lg:col-span-7 space-y-6">
             <div className="space-y-3">
               <div className="text-xs text-neutral-400">
-                <span>Android APK &amp; Web App Distribution</span>
+                <span>Native Android &amp; Web Distribution</span>
                 <span aria-hidden="true"> · </span>
-                <span>AGP 9.1.1 &amp; Gradle 9.3.1 Verified</span>
+                <span>Package: com.Riya.assistant · AGP 9.1.1</span>
               </div>
               <h2
                 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-white"
                 style={{ textWrap: 'balance' }}
               >
-                Install Riya Ai on your Android phone or generate your signed APK.
+                Install Riya Ai on your Android phone or download signed APK.
               </h2>
               <p className="text-sm text-neutral-300 leading-relaxed">
                 Install directly in one tap from your browser, package the live Cloud Run URL via
@@ -1248,23 +1137,23 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
             {/* Option A: Instant PWA Install + Full APK Studio */}
             <div className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 space-y-4">
               <h3 className="font-display text-lg font-semibold text-white">
-                01. One-Tap Android &amp; Desktop App Installation (v5.0)
+                01. One-Tap Android &amp; Desktop Installation (v5.0)
               </h3>
               <p className="text-xs text-neutral-400 leading-relaxed">
-                Installs Mahi Ai to your home screen with full-screen standalone display, 24-Hour
-                Always-On mode, Dynamic Sentiment Theme Engine, and Service Worker v5 offline support.
+                Installs Riya Ai to your home screen with standalone display, 24-Hour
+                Always-On mode, Dynamic Sentiment Theme Engine, and Service Worker offline support.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={() => {
-                    if (canInstall && !isInstalled) {
-                      triggerInstall();
+                    if (isInstallable && !isInstalled) {
+                      install();
                     } else {
                       onOpenMobileControl('apk');
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer shadow-md"
                 >
                   <Download className="w-4 h-4" />
                   <span>{isInstalled ? 'App Installed — Open APK Studio' : 'Install Riya Ai App Now'}</span>
@@ -1272,18 +1161,15 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
 
                 <button
                   type="button"
-                  onClick={async () => {
-                    await forceUpdateApp();
-                    onExecuteCommand('Mahi app update karo');
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50 hover:bg-emerald-900/60 text-xs font-semibold text-emerald-300 transition-colors whitespace-nowrap cursor-pointer"
+                  onClick={() => onOpenMobileControl('apk')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 transition-colors whitespace-nowrap cursor-pointer"
                 >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Update App (v5.0)</span>
+                  <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>View APK Studio</span>
                 </button>
 
                 <a
-                  href="https://www.pwabuilder.com/reportcard?site=https://mahi-ai-assistant-320880289104.asia-southeast1.run.app"
+                  href="https://www.pwabuilder.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-neutral-700 hover:border-neutral-500 text-xs font-medium text-neutral-200 transition-colors whitespace-nowrap"
@@ -1294,7 +1180,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
               </div>
             </div>
 
-            {/* Option B: GitHub Actions Permanent Direct APK Download Link Generator */}
+            {/* Option B: GitHub Actions Direct APK Download Link */}
             <div className="rounded-2xl bg-[#111115] border border-neutral-800 p-6 space-y-4">
               <div className="text-xs text-neutral-400 font-mono">
                 <span>GitHub Actions Workflow Ready</span>
@@ -1314,7 +1200,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                   type="text"
                   value={githubRepoInput}
                   onChange={(e) => setGithubRepoInput(e.target.value)}
-                  placeholder="username/repository-name"
+                  placeholder="gobardhan/riya-ai-assistant"
                   aria-label="GitHub repository name in username/repository-name format"
                   className="flex-1 px-4 py-2.5 rounded-lg bg-[#141419] border border-neutral-800 text-sm font-mono text-white focus:outline-none focus:border-rose-500"
                 />
@@ -1340,25 +1226,10 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
               <div className="p-3 rounded-lg bg-[#0A0A0C] border border-neutral-800 font-mono text-xs text-rose-300 break-all">
                 {directApkDownloadUrl}
               </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <a
-                  href={directApkDownloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600/20 border border-rose-500/40 hover:bg-rose-600/30 text-xs font-semibold text-rose-200 transition-colors whitespace-nowrap"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Open Direct APK Download Link</span>
-                </a>
-                <span className="text-xs text-neutral-400">
-                  Allow the GitHub Actions build and release process to finish before opening.
-                </span>
-              </div>
             </div>
           </div>
 
-          {/* Right 5 Columns: Validated Contact / Custom Hukam Request Form */}
+          {/* Right 5 Columns: Validated Message Form */}
           <div className="lg:col-span-5 rounded-2xl bg-[#111115] border border-neutral-800 p-6 sm:p-8 space-y-5">
             <div className="space-y-2">
               <div className="text-xs text-neutral-400">Custom Persona &amp; Voice Setup</div>
@@ -1375,10 +1246,10 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
               <div className="p-5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 space-y-3">
                 <div className="flex items-center gap-2 text-emerald-300 text-sm font-semibold">
                   <Check className="w-4 h-4" />
-                  <span>Mahi received your personal message!</span>
+                  <span>Riya received your personal message!</span>
                 </div>
                 <p className="text-xs text-neutral-300 leading-relaxed">
-                  Thank you, <strong className="text-white">{contactName}</strong>. Mahi has added
+                  Thank you, <strong className="text-white">{contactName}</strong>. Riya has added
                   your request to her active session memory and spoken her response.
                 </p>
                 <button
@@ -1440,7 +1311,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
 
                 <div>
                   <label htmlFor="contact-msg" className="block text-xs text-neutral-300 mb-1.5">
-                    Your Message or Custom Hukam for Mahi *
+                    Your Message or Custom Hukam for Riya *
                   </label>
                   <textarea
                     id="contact-msg"
@@ -1448,7 +1319,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
                     required
                     value={contactMessage}
                     onChange={(e) => setContactMessage(e.target.value)}
-                    placeholder="Mahi, roz subah 8 baje mujhe good morning bolo..."
+                    placeholder="Riya, roz subah 8 baje mujhe good morning bolo..."
                     className="w-full px-3.5 py-2.5 rounded-lg bg-[#141419] border border-neutral-800 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-rose-500"
                   />
                 </div>
@@ -1459,9 +1330,9 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full py-3 px-5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer"
+                  className="w-full py-3 px-5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer shadow-md"
                 >
-                  Send Message to Mahi Ai
+                  Send Message to Riya Ai
                 </button>
               </form>
             )}
@@ -1470,7 +1341,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
       </section>
 
       {/* =====================================================================
-          8. QUIET EDITORIAL FOOTER
+          8. EDITORIAL FOOTER
       ====================================================================== */}
       <footer className="max-w-[1280px] mx-auto px-6 py-12 text-xs text-neutral-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="space-y-1">
@@ -1484,11 +1355,17 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
           <a href="#capabilities" className="hover:text-white transition-colors">
             Capabilities
           </a>
+          <a href="#auto-mention" className="hover:text-white transition-colors">
+            Auto Mention
+          </a>
+          <a href="#app-heads" className="hover:text-white transition-colors">
+            App Heads
+          </a>
           <a href="#avatars" className="hover:text-white transition-colors">
             3D Avatars
           </a>
           <a href="#commands" className="hover:text-white transition-colors">
-            Voice Commands
+            Voice Hukam
           </a>
           <a href="#download" className="hover:text-white transition-colors">
             APK Download
@@ -1498,7 +1375,7 @@ export const MahiWebsite: React.FC<MahiWebsiteProps> = ({
             onClick={onOpenFullApp}
             className="text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
           >
-            Launch Full-Screen Voice App →
+            Launch Voice Studio →
           </button>
         </div>
       </footer>
