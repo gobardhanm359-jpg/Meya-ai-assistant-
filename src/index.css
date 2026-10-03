@@ -1,1 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700&display=swap');
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Syne', sans-serif;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #0A0A0C;
+    color: #F5F5F3;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Accessibility Modes */
+html.high-contrast-mode body {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+html.high-contrast-mode * {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+html.large-font-mode {
+  font-size: 115% !important;
+}
+
+html.reduce-motion-mode * {
+  animation: none !important;
+  transition: none !important;
+}

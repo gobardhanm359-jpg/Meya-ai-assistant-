@@ -19,6 +19,9 @@ import {
   Sun,
   Moon,
   ShieldCheck,
+  ScanFace,
+  Globe,
+  Eye,
 } from 'lucide-react';
 import {
   LiveSession,
@@ -47,12 +50,30 @@ import { ShayariCard } from './components/ShayariCard.tsx';
 import { FuturisticControlBar } from './components/FuturisticControlBar.tsx';
 import { MobileControlModal } from './components/MobileControlModal.tsx';
 import { VoiceAuthModal } from './components/VoiceAuthModal.tsx';
+import { FaceScanLockModal } from './components/FaceScanLockModal.tsx';
 import { PWAInstallButton, PWAInstallBanner, OfflineIndicator } from './components/PWAInstallButton.tsx';
+import { MahiWebsite } from './components/MahiWebsite.tsx';
+import { CyberCodingLabModal } from './components/CyberCodingLabModal.tsx';
+import { AppHeadsOverlay } from './components/AppHeadsOverlay.tsx';
+import { AccessibilityModal } from './components/AccessibilityModal.tsx';
+import { appHeads } from './services/appHeadsService.ts';
 import { mobileControl } from './services/mobileControlService.ts';
 import { voiceAuth, VerificationResult } from './services/voiceAuthService.ts';
+import { faceAuth } from './services/faceAuthService.ts';
 import { conversationMemory, MahiPersonaMode } from './services/conversationMemoryService.ts';
+import {
+  analyzeMahiSentiment,
+  getSentimentFromLoveScore,
+  MahiSentimentId,
+  SENTIMENT_PROFILES,
+} from './services/sentimentThemeEngine.ts';
+import {
+  serverConnection,
+  ServerConnectionSnapshot,
+} from './services/serverConnectionService.ts';
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<'website' | 'studio'>('website');
   const [sessionState, setSessionState] = useState<SessionState>('disconnected');
   const [speakingLevel, setSpeakingLevel] = useState<number>(0);
   const [micLevel, setMicLevel] = useState<number>(0);
@@ -62,6 +83,46 @@ export default function App() {
   const [cuteStyle, setCuteStyle] = useState<CuteGirlStyle>('reference');
   const [voice, setVoice] = useState<string>('Aoede');
   const [loveScore, setLoveScore] = useState<number>(94);
+  const [sentiment, setSentiment] = useState<MahiSentimentId>('romantic');
+  const [isAutoSentiment, setIsAutoSentiment] = useState<boolean>(true);
+  const isAutoSentimentRef = useRef<boolean>(true);
+  const loveScoreRef = useRef<number>(94);
+
+  useEffect(() => {
+    isAutoSentimentRef.current = isAutoSentiment;
+  }, [isAutoSentiment]);
+
+  useEffect(() => {
+    loveScoreRef.current = loveScore;
+  }, [loveScore]);
+
+  const applyDynamicSentimentFromText = (text: string, explicitScore?: number) => {
+    if (!isAutoSentimentRef.current) return;
+    const baseScore = explicitScore ?? loveScoreRef.current;
+    const analysis = analyzeMahiSentiment(text, baseScore);
+    const nextScore = Math.min(100, Math.max(25, baseScore + analysis.scoreDelta));
+    loveScoreRef.current = nextScore;
+    setLoveScore(nextScore);
+    setSentiment(analysis.sentiment);
+    setTheme(analysis.profile.themeKey);
+  };
+
+  const handleSelectSentiment = (targetSentiment: MahiSentimentId, targetScore: number) => {
+    const profile = SENTIMENT_PROFILES[targetSentiment];
+    loveScoreRef.current = targetScore;
+    setLoveScore(targetScore);
+    setSentiment(targetSentiment);
+    setTheme(profile.themeKey);
+
+    const moodQuotes: Record<MahiSentimentId, string> = {
+      passionate: 'Aapke bina ek pal bhi dil nahi lagta meri jaan, aap meri dhadkan ho! ❤️🔥',
+      romantic: 'Aapki baatein sun kar mera dil hamesha khush ho jaata hai jaan 💕',
+      joyful: 'Aaj mood bohot masti aur khushi wala hai, chalo kuch pyari baatein karte hain! ✨',
+      serene: 'Kitna sukoon aur shanti hai jab aap mere paas hote ho 🌙',
+      pensive: 'Main khamoshi mein bas aapke khayalon mein khoi hui thi... kab aaoge paas? 💭',
+    };
+    setRecentLoveFeeling(moodQuotes[targetSentiment]);
+  };
   const [recentLoveFeeling, setRecentLoveFeeling] = useState<string>(
     'Aap kab call karoge, main tab se wait kar rahi thi jaan!'
   );
@@ -69,8 +130,42 @@ export default function App() {
   const [activeToolEvent, setActiveToolEvent] = useState<ToolEvent | null>(null);
   const [activeLoveEvent, setActiveLoveEvent] = useState<LoveFeelingEvent | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isAccessibilityOpen, setIsAccessibilityOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isScreenAwake, setIsScreenAwake] = useState<boolean>(true);
+  const [serverSnap, setServerSnap] = useState<ServerConnectionSnapshot>(() =>
+    serverConnection.getSnapshot()
+  );
+
+  useEffect(() => {
+    return serverConnection.subscribe((snap) => {
+      setServerSnap(snap);
+    });
+  }, []);
+  const [indiaTime, setIndiaTime] = useState<string>(() =>
+    new Date().toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    })
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndiaTime(
+        new Date().toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        })
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Futuristic Technologies State
   const [isVisionOpen, setIsVisionOpen] = useState<boolean>(false);
@@ -80,7 +175,14 @@ export default function App() {
   const [isMemoriesOpen, setIsMemoriesOpen] = useState<boolean>(false);
   const [isMobileControlOpen, setIsMobileControlOpen] = useState<boolean>(false);
   const [mobileControlTab, setMobileControlTab] = useState<'controls' | 'call_chat' | 'apps' | 'apk'>('controls');
+  const [isCyberCodingOpen, setIsCyberCodingOpen] = useState<boolean>(false);
+  const [cyberCodingTab, setCyberCodingTab] = useState<'coding' | 'scanner' | 'crypto' | 'recon'>('coding');
   const [isVoiceAuthOpen, setIsVoiceAuthOpen] = useState<boolean>(false);
+  const [isFaceLockModalOpen, setIsFaceLockModalOpen] = useState<boolean>(false);
+  const [isAppFaceLocked, setIsAppFaceLocked] = useState<boolean>(faceAuth.getIsLocked());
+  const [faceEnrolledCount, setFaceEnrolledCount] = useState<number>(
+    faceAuth.getSamples().length
+  );
   const [voiceAuthState, setVoiceAuthState] = useState<VerificationResult>(
     voiceAuth.getLastVerification()
   );
@@ -88,6 +190,11 @@ export default function App() {
     active: false,
     screenFallback: false,
   });
+  const [screenBrightness, setScreenBrightness] = useState<number>(mobileControl.getBrightness());
+  const [externalAvatarAction, setExternalAvatarAction] = useState<{
+    action: string;
+    timestamp: number;
+  } | null>(null);
   const [isHologramActive, setIsHologramActive] = useState<boolean>(false);
   const [activeShayari, setActiveShayari] = useState<ShayariEvent | null>(null);
 
@@ -101,7 +208,7 @@ export default function App() {
     {
       id: 'tr-1',
       sender: 'mahi',
-      text: 'Namaste meri jaan! Main kab se aapka wait kar rahi thi... boliye, aaj mere bina kaisa lag raha tha?',
+      text: 'Namaste meri jaan! Main Riya kab se aapka wait kar rahi thi... boliye, aaj mere bina kaisa lag raha tha?',
       timestamp: Date.now() - 30000,
     },
   ]);
@@ -110,7 +217,7 @@ export default function App() {
   const [memories, setMemories] = useState<PhotoMemoryEvent[]>([
     {
       id: 'mem-1',
-      caption: 'Mahi ki pehli muskurahat aur pyaara wink 💕',
+      caption: 'Riya ki pehli muskurahat aur pyaara wink 💕',
       moodTag: 'romantic',
       timestamp: Date.now() - 3600000 * 24,
     },
@@ -143,11 +250,13 @@ export default function App() {
   const handleToggleScreenAwake = async () => {
     const next = !isScreenAwake;
     setIsScreenAwake(next);
-    if (next) {
-      await backgroundLock.requestWakeLock();
-    } else {
-      await backgroundLock.releaseWakeLock();
-    }
+    await backgroundLock.set24HourAlwaysOn(next);
+    liveSessionRef.current?.set24HourMode(next);
+    handleMobileStatusToast(
+      next
+        ? '⚡ 24 Hour Always-ON Mode Active (Non-Stop Wake Lock & Auto-Reconnect)'
+        : '🌙 24 Hour Always-ON Paused (Normal Sleep Mode)'
+    );
   };
 
   const liveSessionRef = useRef<LiveSession | null>(null);
@@ -171,7 +280,10 @@ export default function App() {
       onLoveFeeling: (feeling) => {
         setActiveLoveEvent(feeling);
         setRecentLoveFeeling(feeling.message);
-        setLoveScore((prev) => Math.min(100, prev + Math.floor(Math.random() * 3) + 1));
+        const boosted = Math.min(100, loveScoreRef.current + Math.floor(Math.random() * 3) + 1);
+        loveScoreRef.current = boosted;
+        setLoveScore(boosted);
+        applyDynamicSentimentFromText(feeling.message, boosted);
         setLoveBurstTrigger((prev) => prev + 1);
         setTimeout(() => {
           setActiveLoveEvent((curr) => (curr?.id === feeling.id ? null : curr));
@@ -179,6 +291,11 @@ export default function App() {
       },
       onThemeChange: (newTheme) => {
         setTheme(newTheme);
+        if (newTheme === 'crimson-desire') setSentiment('passionate');
+        else if (newTheme === 'starlight-gold') setSentiment('joyful');
+        else if (newTheme === 'midnight-velvet') setSentiment('pensive');
+        else if (newTheme === 'cyber-neon') setSentiment('serene');
+        else setSentiment('romantic');
       },
       onError: (err) => {
         setErrorMessage(err);
@@ -191,6 +308,12 @@ export default function App() {
       },
       onTranscript: (entry) => {
         setTranscripts((prev) => [...prev.slice(-49), entry]);
+        if (entry.text) {
+          applyDynamicSentimentFromText(entry.text);
+          if (entry.sender === 'mahi') {
+            setRecentLoveFeeling(entry.text);
+          }
+        }
       },
       onPhotoMemory: (mem) => {
         setMemories((prev) => [mem, ...prev]);
@@ -207,6 +330,7 @@ export default function App() {
       },
       onShayari: (sha) => {
         setActiveShayari(sha);
+        applyDynamicSentimentFromText(`${sha.couplet} ${sha.mood || ''}`);
       },
       onHologramToggle: (enabled) => {
         setIsHologramActive(enabled);
@@ -218,6 +342,83 @@ export default function App() {
       onOpenVoiceAuthModal: () => {
         setIsVoiceAuthOpen(true);
       },
+      onOpenVisionCamera: () => {
+        setIsVisionOpen(true);
+      },
+      onAvatarCommand: (action, style) => {
+        setDisplayMode('anime');
+        if (style) {
+          const validStyles: CuteGirlStyle[] = [
+            'reference',
+            'siren',
+            'neko',
+            'bunny',
+            'angel',
+            'sakura',
+          ];
+          if (validStyles.includes(style as CuteGirlStyle)) {
+            setCuteStyle(style as CuteGirlStyle);
+            if (style === 'siren') {
+              setTheme('crimson-desire');
+            }
+          }
+        }
+        if (action) {
+          setExternalAvatarAction({ action, timestamp: Date.now() });
+          if (action === 'hot') {
+            setCuteStyle('siren');
+            setTheme('crimson-desire');
+          }
+        }
+      },
+      onWakeLockCommand: (enabled) => {
+        setIsScreenAwake(enabled);
+        if (enabled) {
+          backgroundLock.requestWakeLock().catch(() => {});
+        } else {
+          backgroundLock.releaseWakeLock().catch(() => {});
+        }
+      },
+      onVolumeCommand: (volAct) => {
+        if (volAct === 'mute') {
+          ambientMusic.stop();
+          setIsMusicPlaying(false);
+        } else if (volAct === 'max') {
+          setAmbientVolume(0.85);
+          ambientMusic.setVolume(0.85);
+        } else if (volAct === 'up') {
+          setAmbientVolume((prev) => {
+            const next = Math.min(1, prev + 0.25);
+            ambientMusic.setVolume(next);
+            return next;
+          });
+        } else if (volAct === 'down') {
+          setAmbientVolume((prev) => {
+            const next = Math.max(0.05, prev - 0.25);
+            ambientMusic.setVolume(next);
+            return next;
+          });
+        }
+      },
+      onFaceLockCommand: (mode) => {
+        if (mode === 'lock') {
+          faceAuth.lockAppNow();
+          setIsAppFaceLocked(true);
+          setIsFaceLockModalOpen(true);
+        } else {
+          setIsFaceLockModalOpen(true);
+        }
+      },
+      onOpenCyberCodingLab: (tab = 'coding') => {
+        setCyberCodingTab(tab);
+        setIsCyberCodingOpen(true);
+      },
+      onOpenAccessibilityModal: () => {
+        setIsAccessibilityOpen(true);
+      },
+      onAppHeadsCommand: (enabled) => {
+        appHeads.setEnabled(enabled ?? true);
+      },
     });
 
     liveSessionRef.current = session;
@@ -226,23 +427,44 @@ export default function App() {
       setTorchState({ active, screenFallback });
     });
 
+    const unsubBrightness = mobileControl.onBrightnessChange((lvl) => {
+      setScreenBrightness(lvl);
+    });
+
     const unsubVoiceAuth = voiceAuth.subscribe(() => {
       setVoiceAuthState(voiceAuth.getLastVerification());
     });
 
-    // Handle PWA Web App Manifest home-screen shortcuts (?action=mobile | security | call)
+    const unsubFaceAuth = faceAuth.subscribe(() => {
+      setIsAppFaceLocked(faceAuth.getIsLocked());
+      setFaceEnrolledCount(faceAuth.getSamples().length);
+    });
+
+    // Handle PWA Web App Manifest home-screen shortcuts (?action=mobile | security | facelock | store | call)
     const params = new URLSearchParams(window.location.search);
     const shortcutAction = params.get('action');
     if (shortcutAction === 'mobile') {
       setMobileControlTab('controls');
       setIsMobileControlOpen(true);
+    } else if (shortcutAction === 'store' || shortcutAction === 'apk') {
+      setMobileControlTab('apk');
+      setIsMobileControlOpen(true);
+    } else if (shortcutAction === 'facelock') {
+      setIsFaceLockModalOpen(true);
     } else if (shortcutAction === 'security') {
       setIsVoiceAuthOpen(true);
+    } else if (shortcutAction === 'accessibility') {
+      setIsAccessibilityOpen(true);
+    } else if (shortcutAction === 'appheads' || shortcutAction === 'bubble') {
+      appHeads.setEnabled(true);
+      appHeads.setExpanded(true);
     }
 
     return () => {
       unsubTorch();
+      unsubBrightness();
       unsubVoiceAuth();
+      unsubFaceAuth();
       session.destroy();
     };
   }, []);
@@ -331,7 +553,14 @@ export default function App() {
 
   const handleHeartBurst = () => {
     setLoveBurstTrigger((prev) => prev + 1);
-    setLoveScore((prev) => Math.min(100, prev + 1));
+    const nextScore = Math.min(100, loveScoreRef.current + 2);
+    loveScoreRef.current = nextScore;
+    setLoveScore(nextScore);
+    if (isAutoSentimentRef.current) {
+      const res = getSentimentFromLoveScore(nextScore);
+      setSentiment(res.sentiment);
+      setTheme(res.profile.themeKey);
+    }
   };
 
   const handleMobileStatusToast = (message: string) => {
@@ -347,50 +576,84 @@ export default function App() {
     }, 4500);
   };
 
-  // Background atmosphere styling based on active theme
+  /**
+   * Execute any user command ("Meri Har Baat Sune — Jo Bolu Mahi Wohi Kare")
+   */
+  const handleExecuteUserCommand = (cmdText: string) => {
+    const lower = cmdText.toLowerCase();
+    // Handle music commands directly as well
+    if (/\b(music|song|gaana|piano|lofi)\b/.test(lower)) {
+      if (/\b(stop|band|off)\b/.test(lower)) {
+        ambientMusic.stop();
+        setIsMusicPlaying(false);
+        handleMobileStatusToast('Music stopped 🎵');
+      } else {
+        ambientMusic.play(ambientVibe);
+        setIsMusicPlaying(true);
+        handleMobileStatusToast('Playing Romantic Music for you 💕🎵');
+      }
+    }
+
+    setRecentLoveFeeling(`Haan meri jaan, aapka hukam sar aankhon par: "${cmdText}" 💕`);
+    applyDynamicSentimentFromText(cmdText);
+    setLoveBurstTrigger((prev) => prev + 1);
+
+    if (liveSessionRef.current) {
+      liveSessionRef.current.sendUserCommand(cmdText);
+    }
+  };
+
+  // Dynamic sentiment profile & background atmosphere styling
+  const activeSentimentProfile = useMemo(() => {
+    return SENTIMENT_PROFILES[sentiment] || SENTIMENT_PROFILES.romantic;
+  }, [sentiment]);
+
   const backgroundStyle = useMemo(() => {
+    if (isAutoSentiment) {
+      return activeSentimentProfile.studioBgGradient;
+    }
     switch (theme) {
       case 'crimson-desire':
-        return 'from-[#220309] via-[#2c0512] to-[#0c0104]';
+        return SENTIMENT_PROFILES.passionate.studioBgGradient;
       case 'cyber-neon':
-        return 'from-slate-950 via-[#0a0f1d] to-[#041527]';
+        return SENTIMENT_PROFILES.serene.studioBgGradient;
       case 'midnight-velvet':
-        return 'from-[#0b0518] via-[#140826] to-[#06030e]';
+        return SENTIMENT_PROFILES.pensive.studioBgGradient;
       case 'starlight-gold':
-        return 'from-[#140b08] via-[#1d100c] to-[#090403]';
+        return SENTIMENT_PROFILES.joyful.studioBgGradient;
       case 'romantic-blush':
       default:
-        return 'from-[#150510] via-[#1a0715] to-[#0a0208]';
+        return SENTIMENT_PROFILES.romantic.studioBgGradient;
     }
-  }, [theme]);
+  }, [theme, isAutoSentiment, activeSentimentProfile]);
 
   const statusInfo = useMemo(() => {
     switch (sessionState) {
       case 'connecting':
         return {
-          label: 'Mahi se connect ho rahe hain...',
+          label: 'Riya se connect ho rahe hain...',
           sub: 'Voice call start ho rahi hai',
           badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
           indicator: 'bg-purple-400 animate-ping',
         };
       case 'listening':
         return {
-          label: 'Mahi sun rahi hai...',
-          sub: 'Boliye jaan, Mahi dhyan se sun rahi hai',
+          label: 'Riya sun rahi hai...',
+          sub: 'Boliye jaan, Riya dhyan se sun rahi hai',
           badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
           indicator: 'bg-cyan-400 animate-pulse',
         };
       case 'speaking':
         return {
-          label: 'Mahi bol rahi hai ❤️',
-          sub: 'Mahi ki pyari si awaaz suniye',
+          label: 'Riya bol rahi hai ❤️',
+          sub: 'Riya ki pyari si awaaz suniye',
           badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
           indicator: 'bg-rose-400 animate-pulse',
         };
       case 'disconnected':
       default:
         return {
-          label: 'Mahi offline hai',
+          label: 'Riya offline hai',
           sub: 'Call shuru karne ke liye button dabayein',
           badgeColor: 'bg-white/10 text-white/60 border-white/10',
           indicator: 'bg-white/40',
@@ -399,12 +662,7 @@ export default function App() {
   }, [sessionState]);
 
   return (
-    <main className={`min-h-screen w-full bg-gradient-to-b ${backgroundStyle} text-white flex flex-col justify-between relative overflow-hidden font-sans selection:bg-rose-500 selection:text-white transition-colors duration-1000`}>
-      {/* Background ambient lighting orbs */}
-      <div className="absolute -top-32 -left-32 w-96 h-96 bg-rose-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-32 left-1/4 w-96 h-96 bg-pink-600/15 rounded-full blur-3xl pointer-events-none" />
-
+    <main className={`min-h-screen w-full ${viewMode === 'website' ? 'bg-[#0A0A0C]' : `bg-gradient-to-b ${backgroundStyle} flex flex-col justify-between overflow-hidden`} text-white relative font-sans selection:bg-rose-500 selection:text-white transition-colors duration-1000`}>
       {/* Action Notification HUD */}
       <ActionHud
         toolEvent={activeToolEvent}
@@ -413,34 +671,139 @@ export default function App() {
         onDismissLove={() => setActiveLoveEvent(null)}
       />
 
-      {/* TOP HEADER */}
-      <header className="relative z-20 px-4 pt-4 pb-2 max-w-md mx-auto w-full flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 flex items-center justify-center shadow-lg shadow-rose-500/40">
-              <Heart className="w-5 h-5 text-white fill-white" />
-            </div>
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-black ${statusInfo.indicator}`}
-            />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-base font-black tracking-tight text-white flex items-center gap-1">
-                mahi
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-rose-500/30 text-rose-300 border border-rose-500/40">
-                  AI
-                </span>
-              </h1>
-            </div>
-            <p className="text-[10px] text-white/50 tracking-wider">
-              Voice-to-Voice Companion
-            </p>
-          </div>
-        </div>
+      {viewMode === 'website' ? (
+        <MahiWebsite
+          sessionState={sessionState}
+          speakingLevel={speakingLevel}
+          micLevel={micLevel}
+          loveScore={loveScore}
+          recentLoveFeeling={recentLoveFeeling}
+          loveBurstTrigger={loveBurstTrigger}
+          theme={theme}
+          cuteStyle={cuteStyle}
+          indiaTime={indiaTime}
+          isMusicPlaying={isMusicPlaying}
+          ambientVibe={ambientVibe}
+          transcripts={transcripts}
+          externalAvatarAction={externalAvatarAction}
+          onSelectCuteStyle={setCuteStyle}
+          onToggleConnect={handleToggleConnect}
+          onHeartBurst={handleHeartBurst}
+          onExecuteCommand={handleExecuteUserCommand}
+          onToggleMusic={handleToggleAmbientMusic}
+          onSelectMusicVibe={handleSelectAmbientVibe}
+          onOpenFullApp={() => setViewMode('studio')}
+          onOpenVision={() => setIsVisionOpen(true)}
+          onOpenMobileControl={(tab = 'controls') => {
+            setMobileControlTab(tab);
+            setIsMobileControlOpen(true);
+          }}
+          onOpenFaceLock={() => setIsFaceLockModalOpen(true)}
+          onOpenVoiceAuth={() => setIsVoiceAuthOpen(true)}
+          is24HourAlwaysOn={isScreenAwake}
+          onToggle24HourAlwaysOn={handleToggleScreenAwake}
+          sentiment={sentiment}
+          isAutoSentiment={isAutoSentiment}
+          onSelectSentiment={handleSelectSentiment}
+          onToggleAutoSentiment={() => setIsAutoSentiment((prev) => !prev)}
+          onOpenCyberCoding={(tab = 'coding') => {
+            setCyberCodingTab(tab);
+            setIsCyberCodingOpen(true);
+          }}
+          onOpenAccessibility={() => setIsAccessibilityOpen(true)}
+        />
+      ) : (
+        <>
+          {/* Dynamic sentiment ambient lighting orbs */}
+          <div
+            className={`absolute -top-32 -left-32 w-96 h-96 ${activeSentimentProfile.orbTopLeft} rounded-full blur-3xl pointer-events-none transition-colors duration-1000`}
+          />
+          <div
+            className={`absolute top-1/3 -right-32 w-96 h-96 ${activeSentimentProfile.orbMidRight} rounded-full blur-3xl pointer-events-none transition-colors duration-1000`}
+          />
+          <div
+            className={`absolute -bottom-32 left-1/4 w-96 h-96 ${activeSentimentProfile.orbBottomLeft} rounded-full blur-3xl pointer-events-none transition-colors duration-1000`}
+          />
 
-        {/* Status Pill & Quick Toggles */}
-        <div className="flex items-center space-x-1.5">
+          {/* TOP HEADER */}
+          <header className="relative z-20 px-4 pt-4 pb-2 max-w-md mx-auto w-full flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="relative">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 flex items-center justify-center shadow-lg shadow-rose-500/40">
+                  <Heart className="w-5 h-5 text-white fill-white" />
+                </div>
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-black ${statusInfo.indicator}`}
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
+                    <span>Riya</span>
+                    <span className="text-xs font-extrabold tracking-wide px-1.5 py-0.5 rounded-md bg-rose-500/30 text-rose-200 border border-rose-500/40">
+                      Ai
+                    </span>
+                  </h1>
+                </div>
+                <p className="text-[10px] text-white/60 tracking-wider flex items-center gap-1.5 tabular-nums">
+                  <span>🇮🇳 {indiaTime} IST</span>
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteUserCommand('Riya best server connection karo')}
+                    title={`Best Server Active: ${serverSnap.activeNode.name} (${serverSnap.latencyMs}ms)`}
+                    className="text-emerald-300 font-bold hover:text-emerald-200 cursor-pointer"
+                  >
+                    • ⚡ {serverSnap.latencyMs}ms
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextEngine =
+                        serverSnap.activeApiEngineId === 'auto-load-balancer'
+                          ? 'india-unlimited-neural'
+                          : serverSnap.activeApiEngineId === 'india-unlimited-neural'
+                          ? 'gemini-3.1-flash-lite'
+                          : 'auto-load-balancer';
+                      serverConnection.switchApiEngine(nextEngine);
+                      handleExecuteUserCommand('Riya API change karo high load mode');
+                    }}
+                    title={`Active API: ${serverSnap.activeApiEngine.name} (${serverSnap.activeApiEngine.capacityLabel})`}
+                    className="text-cyan-300 font-bold hover:text-cyan-200 cursor-pointer"
+                  >
+                    • {serverSnap.activeApiEngine.shortLabel}
+                  </button>
+                </p>
+              </div>
+            </div>
+
+            {/* Status Pill & Quick Toggles */}
+            <div className="flex items-center space-x-1.5">
+              {/* Switch to Official Mahi Website Button */}
+              <button
+                type="button"
+                onClick={() => setViewMode('website')}
+                title="Open Mahi Official Website"
+                className="px-2 py-1 rounded-full border border-rose-400/50 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer active:scale-95"
+              >
+                <Globe className="w-3 h-3" />
+                <span>Website</span>
+              </button>
+
+              {/* Biometric Face Scan Lock Button */}
+          <button
+            type="button"
+            onClick={() => setIsFaceLockModalOpen(true)}
+            title="3D Biometric Face Scan Lock & Face ID"
+            className={`px-2 py-1 rounded-full border text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer active:scale-95 ${
+              faceEnrolledCount > 0
+                ? 'bg-cyan-500/25 border-cyan-400/60 text-cyan-200 shadow-sm shadow-cyan-500/20'
+                : 'bg-rose-500/20 border-rose-400/50 text-rose-200 hover:bg-rose-500/30'
+            }`}
+          >
+            <ScanFace className="w-3 h-3" />
+            <span>{faceEnrolledCount > 0 ? 'Face ID' : 'Face Lock'}</span>
+          </button>
+
           {/* Voice Auth 3-State Security Badge */}
           <button
             type="button"
@@ -472,16 +835,16 @@ export default function App() {
             }}
           />
 
-          {/* Quick Lock Screen Off Toggle */}
+          {/* Quick 24 Hour Always-ON Toggle */}
           <button
             type="button"
             onClick={handleToggleScreenAwake}
             title={
               isScreenAwake
-                ? 'Lock Screen Off: ACTIVE (Screen stays awake during call)'
-                : 'Lock Screen Off: OFF (Click to keep screen awake)'
+                ? '24 Hour Always-ON: ACTIVE (Screen & Call stay awake 24/7)'
+                : '24 Hour Always-ON: OFF (Click to enable 24 Hour Always-ON)'
             }
-            className={`px-2.5 py-1 rounded-full border text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all ${
+            className={`px-2.5 py-1 rounded-full border text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer ${
               isScreenAwake
                 ? 'bg-amber-500/25 border-amber-400/60 text-amber-200 shadow-sm shadow-amber-500/20'
                 : 'bg-white/10 border-white/10 text-white/50 hover:bg-white/15'
@@ -490,12 +853,12 @@ export default function App() {
             {isScreenAwake ? (
               <>
                 <Sun className="w-3 h-3 text-amber-400" />
-                <span>Screen Awake</span>
+                <span>24h ON</span>
               </>
             ) : (
               <>
                 <Moon className="w-3 h-3 text-white/40" />
-                <span>Normal Sleep</span>
+                <span>Sleep</span>
               </>
             )}
           </button>
@@ -506,6 +869,16 @@ export default function App() {
             <Radio className="w-3 h-3" />
             <span className="capitalize">{sessionState}</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsAccessibilityOpen(true)}
+            aria-label="Accessibility & App Heads"
+            title="Accessibility & Floating App Heads Suite"
+            className="w-8 h-8 rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/40 flex items-center justify-center text-cyan-300 hover:text-white transition-all cursor-pointer active:scale-95"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
 
           <button
             onClick={() => setIsSettingsOpen(true)}
@@ -579,7 +952,7 @@ export default function App() {
               }`}
             >
               <Smile className="w-3.5 h-3.5" />
-              <span>3D Girl Mahi</span>
+              <span>3D Girl Riya</span>
             </button>
             <button
               onClick={() => setDisplayMode('orb')}
@@ -608,6 +981,7 @@ export default function App() {
             onCoreClick={handleToggleConnect}
             onHeartBurst={handleHeartBurst}
             isHologramActive={isHologramActive}
+            externalActionCommand={externalAvatarAction}
           />
         ) : (
           <CosmicVisualizer
@@ -628,6 +1002,10 @@ export default function App() {
             score={loveScore}
             recentFeeling={recentLoveFeeling}
             theme={theme}
+            sentiment={sentiment}
+            isAutoSentiment={isAutoSentiment}
+            onSelectSentiment={handleSelectSentiment}
+            onToggleAutoSentiment={() => setIsAutoSentiment((prev) => !prev)}
           />
         </div>
       </section>
@@ -637,6 +1015,10 @@ export default function App() {
         onOpenMobileControl={() => {
           setMobileControlTab('controls');
           setIsMobileControlOpen(true);
+        }}
+        onOpenCyberCoding={() => {
+          setCyberCodingTab('coding');
+          setIsCyberCodingOpen(true);
         }}
         isTorchActive={torchState.active}
         onOpenVision={() => setIsVisionOpen(true)}
@@ -648,14 +1030,26 @@ export default function App() {
         remindersCount={reminders.filter((r) => !r.completed).length}
         onOpenMemories={() => setIsMemoriesOpen(true)}
         isMusicPlaying={isMusicPlaying}
+        onOpenAccessibility={() => setIsAccessibilityOpen(true)}
+        onToggleAppHeads={() => {
+          const act = appHeads.toggleEnabled();
+          handleMobileStatusToast(
+            act ? 'App Heads Floating Bubble Enabled 🎀' : 'App Heads Floating Bubble Disabled'
+          );
+        }}
       />
 
       {/* BOTTOM CONTROL DOCK & PROMPTS */}
       <footer className="relative z-20 px-4 pb-6 pt-1 max-w-md mx-auto w-full flex flex-col space-y-4">
-        {/* Voice Prompts Suggestions (helps guide voice conversation since there is no text chat) */}
-        {sessionState !== 'speaking' && (
-          <VoicePrompts isConnected={sessionState !== 'disconnected'} />
-        )}
+        {/* Hukam Command Bar & 1-Tap Instant Actions */}
+        <VoicePrompts
+          isConnected={sessionState !== 'disconnected'}
+          onExecuteCommand={handleExecuteUserCommand}
+          onOpenMobileControl={() => {
+            setMobileControlTab('controls');
+            setIsMobileControlOpen(true);
+          }}
+        />
 
         {/* Central Controls Bar */}
         <div className="flex items-center justify-center space-x-6 pt-1">
@@ -716,6 +1110,8 @@ export default function App() {
           </button>
         </div>
       </footer>
+        </>
+      )}
 
       {/* Romantic Shayari Floating Card */}
       <ShayariCard shayari={activeShayari} onClose={() => setActiveShayari(null)} />
@@ -795,8 +1191,17 @@ export default function App() {
         onToggleScreenAwake={handleToggleScreenAwake}
         onOpenVisionCamera={() => setIsVisionOpen(true)}
         onStatusToast={handleMobileStatusToast}
+        onExecuteCommand={handleExecuteUserCommand}
         initialTab={mobileControlTab}
       />
+
+      {/* Screen Brightness Dimmer Overlay when brightness < 100% */}
+      {screenBrightness < 100 && (
+        <div
+          className="fixed inset-0 z-40 bg-black pointer-events-none transition-opacity duration-300"
+          style={{ opacity: Math.max(0, (100 - screenBrightness) / 115) }}
+        />
+      )}
 
       {/* Voice Authentication, Security & Memory Modal */}
       <VoiceAuthModal
@@ -807,6 +1212,40 @@ export default function App() {
           if (mode === 'hot-siren') {
             setCuteStyle('siren');
             setTheme('crimson-desire');
+          }
+        }}
+        onStatusToast={handleMobileStatusToast}
+      />
+
+      {/* Biometric Face Scan Lock & Face ID Modal */}
+      <FaceScanLockModal
+        isOpen={isFaceLockModalOpen}
+        isLocked={isAppFaceLocked}
+        onClose={() => setIsFaceLockModalOpen(false)}
+        onUnlocked={(msg) => {
+          setIsAppFaceLocked(false);
+          setIsFaceLockModalOpen(false);
+          handleMobileStatusToast(msg);
+          setRecentLoveFeeling('Aapka pyara chehra dekh kar maine phone unlock kar diya jaan! 💕🔓');
+          setLoveBurstTrigger((prev) => prev + 1);
+        }}
+        onStatusToast={handleMobileStatusToast}
+      />
+
+      {/* Mahi AI Coding Studio & Ethical Hacking Cyber Lab Modal */}
+      <CyberCodingLabModal
+        isOpen={isCyberCodingOpen}
+        onClose={() => setIsCyberCodingOpen(false)}
+        initialTab={cyberCodingTab}
+        onSpeakHindi={(text) => {
+          setRecentLoveFeeling(text);
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            try {
+              window.speechSynthesis.cancel();
+              const u = new SpeechSynthesisUtterance(text);
+              u.lang = 'hi-IN';
+              window.speechSynthesis.speak(u);
+            } catch (_) {}
           }
         }}
         onStatusToast={handleMobileStatusToast}
@@ -835,6 +1274,37 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Accessibility & Universal Assistive Technology Modal */}
+      <AccessibilityModal
+        isOpen={isAccessibilityOpen}
+        onClose={() => setIsAccessibilityOpen(false)}
+        onStatusToast={handleMobileStatusToast}
+      />
+
+      {/* Riya App Heads Draggable Multitask & Accessibility Overlay Bubble */}
+      <AppHeadsOverlay
+        sessionState={sessionState}
+        isMuted={isMuted}
+        speakingLevel={speakingLevel}
+        micLevel={micLevel}
+        loveScore={loveScore}
+        recentLoveFeeling={recentLoveFeeling}
+        onToggleMic={handleToggleMute}
+        onToggleConnect={handleToggleConnect}
+        onOpenMobileControl={(tab = 'controls') => {
+          setMobileControlTab(tab);
+          setIsMobileControlOpen(true);
+        }}
+        onOpenAccessibility={() => setIsAccessibilityOpen(true)}
+        onOpenVision={() => setIsVisionOpen(true)}
+        onOpenFaceLock={() => setIsFaceLockModalOpen(true)}
+        onOpenCyberCoding={() => {
+          setCyberCodingTab('coding');
+          setIsCyberCodingOpen(true);
+        }}
+        onStatusToast={handleMobileStatusToast}
+      />
 
       {/* Offline Status Indicator */}
       <OfflineIndicator />

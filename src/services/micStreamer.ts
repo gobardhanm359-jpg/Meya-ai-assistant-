@@ -14,6 +14,7 @@ export class MicStreamer {
   private onRawPcmFrame?: (frame: Float32Array) => void;
   private isCapturing: boolean = false;
   private isMuted: boolean = false;
+  private permissionDenied: boolean = false;
 
   constructor(
     onAudioChunk?: (base64Pcm: string) => void,
@@ -25,18 +26,71 @@ export class MicStreamer {
     this.onRawPcmFrame = onRawPcmFrame;
   }
 
-  public async start(): Promise<void> {
-    if (this.isCapturing) return;
+  public isActive(): boolean {
+    return this.isCapturing;
+  }
+
+  public isPermissionDenied(): boolean {
+    return this.permissionDenied;
+  }
+
+  public async start(): Promise<boolean> {
+    if (this.isCapturing) return true;
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== 'function'
+    ) {
+      this.permissionDenied = true;
+      return false;
+    }
 
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      // Check Permissions API first if available to avoid unnecessary error states when explicitly denied
+      if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+        try {
+          const status = await navigator.permissions.query({
+            name: 'microphone' as PermissionName,
+          });
+          if (status.state === 'denied') {
+            this.permissionDenied = true;
+            return false;
+          }
+        } catch (_) {
+          // Ignore if browser does not support 'microphone' query in permissions API
+        }
+      }
+
+      try {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (constraintErr: any) {
+        const errName = constraintErr?.name || '';
+        const errMsg = String(constraintErr?.message || '');
+        if (
+          errName === 'NotAllowedError' ||
+          errName === 'PermissionDeniedError' ||
+          errName === 'SecurityError' ||
+          /permission denied|not allowed/i.test(errMsg)
+        ) {
+          this.permissionDenied = true;
+          this.stop();
+          return false;
+        }
+        // Fallback to basic audio constraint if specific constraints failed
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+      }
+
+      this.permissionDenied = false;
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       // Target 16kHz as requested for Gemini Live
@@ -90,10 +144,11 @@ export class MicStreamer {
       this.processorNode.connect(this.audioContext.destination);
 
       this.isCapturing = true;
-    } catch (err) {
-      console.error('[MicStreamer] Failed to access microphone:', err);
+      return true;
+    } catch (err: any) {
+      this.permissionDenied = true;
       this.stop();
-      throw err;
+      return false;
     }
   }
 

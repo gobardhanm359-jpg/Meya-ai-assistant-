@@ -31,7 +31,7 @@ export interface VerificationResult {
   reason: string;
   rmsEnergy: number;
   snrDb: number;
-  method: 'voice' | 'pin' | 'pattern' | 'none';
+  method: 'voice' | 'face' | 'pin' | 'pattern' | 'none';
   timestamp: number;
 }
 
@@ -54,6 +54,7 @@ export interface PendingProtectedAction {
 const SAMPLES_STORAGE_KEY = 'mahi_voice_auth_samples_v2';
 const PROTECTION_ENABLED_KEY = 'mahi_voice_protection_enabled_v2';
 const APPLOCK_STORAGE_KEY = 'mahi_app_lock_config_v2';
+const INSTANT_OBEY_KEY = 'mahi_instant_obey_mode_v1';
 
 export const ENROLLMENT_PHRASES = [
   {
@@ -76,6 +77,7 @@ export const ENROLLMENT_PHRASES = [
 class VoiceAuthService {
   private samples: VoiceSample[] = [];
   private isProtectionEnabled: boolean = false;
+  private instantObeyMode: boolean = true;
   private appLock: AppLockConfig = {
     enabled: true,
     pin: '1234',
@@ -126,6 +128,13 @@ class VoiceAuthService {
         this.isProtectionEnabled = JSON.parse(rawProt) === true;
       }
 
+      const rawObey = localStorage.getItem(INSTANT_OBEY_KEY);
+      if (rawObey !== null) {
+        this.instantObeyMode = JSON.parse(rawObey) === true;
+      } else {
+        this.instantObeyMode = true;
+      }
+
       const rawLock = localStorage.getItem(APPLOCK_STORAGE_KEY);
       if (rawLock) {
         const parsedLock = JSON.parse(rawLock);
@@ -146,6 +155,7 @@ class VoiceAuthService {
     try {
       localStorage.setItem(SAMPLES_STORAGE_KEY, JSON.stringify(this.samples));
       localStorage.setItem(PROTECTION_ENABLED_KEY, JSON.stringify(this.isProtectionEnabled));
+      localStorage.setItem(INSTANT_OBEY_KEY, JSON.stringify(this.instantObeyMode));
       localStorage.setItem(APPLOCK_STORAGE_KEY, JSON.stringify(this.appLock));
     } catch (e) {
       console.warn('[VoiceAuth] Failed to persist state:', e);
@@ -184,6 +194,21 @@ class VoiceAuthService {
 
   public setProtectionEnabled(enabled: boolean): void {
     this.isProtectionEnabled = enabled;
+    if (enabled) {
+      this.instantObeyMode = false;
+    }
+    this.saveState();
+  }
+
+  public getInstantObeyMode(): boolean {
+    return this.instantObeyMode;
+  }
+
+  public setInstantObeyMode(enabled: boolean): void {
+    this.instantObeyMode = enabled;
+    if (enabled) {
+      this.isProtectionEnabled = false;
+    }
     this.saveState();
   }
 
@@ -869,6 +894,29 @@ class VoiceAuthService {
   }
 
   /**
+   * Biometric Face ID Unlock Verification
+   */
+  public verifyWithFace(confidence: number = 96): boolean {
+    this.lastVerification = {
+      state: 'verified_admin',
+      confidence,
+      turnId: this.currentTurnId,
+      reason: `Verified Admin via 3D Biometric Face Scan (${confidence}%) 🔓`,
+      rmsEnergy: this.lastVerification.rmsEnergy,
+      snrDb: this.lastVerification.snrDb,
+      method: 'face',
+      timestamp: Date.now(),
+    };
+    if (this.pendingAction) {
+      const act = this.pendingAction;
+      this.pendingAction = null;
+      act.execute();
+    }
+    this.notifyListeners();
+    return true;
+  }
+
+  /**
    * Centralized Fail-Closed Security Gate for AI Tools & Actions
    */
   public authorizeToolExecution(
@@ -898,13 +946,13 @@ class VoiceAuthService {
       };
     }
 
-    // 2. If tool is not high-risk OR Voice Protection is not enabled, allow execution
-    if (!isHighRisk || !this.isProtectionEnabled) {
+    // 2. If Hukam Mode (instantObeyMode) is active, OR tool is not high-risk, OR Voice Protection is not enabled, allow execution immediately
+    if (this.instantObeyMode || !isHighRisk || !this.isProtectionEnabled) {
       onExecute();
       return {
         allowed: true,
-        state: this.lastVerification.state,
-        reason: 'Authorized',
+        state: this.instantObeyMode ? 'verified_admin' : this.lastVerification.state,
+        reason: this.instantObeyMode ? 'Hukam Mode Active (Mahi Obeys Every Command)' : 'Authorized',
         requiresFallbackModal: false,
       };
     }

@@ -1,0 +1,129 @@
+{
+  "id": "/",
+  "name": "Mahi Ai",
+  "short_name": "Mahi Ai",
+  "description": "Real-time voice-to-voice AI girlfriend assistant with smart mobile device control, 3D biometric face scan lock, and instant Hindi/Hinglish voice commands.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "theme_color": "#150510",
+  "background_color": "#150510",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "serviceworker": {
+    "src": "/sw.js",
+    "scope": "/",
+    "use_cache": false
+  },
+  "categories": [
+    "lifestyle",
+    "entertainment",
+    "utilities",
+    "productivity"
+  ],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": [
+      "navigate-existing",
+      "auto"
+    ]
+  },
+  "handle_links": "preferred",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mahi AI 3D Companion & Mobile Control Center"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Mahi AI Biometric Face ID & Voice Command Studio"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Talk to Mahi AI",
+      "short_name": "Voice Call",
+      "description": "Start a live Hindi voice call with Mahi",
+      "url": "/?action=call",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Mobile Control Center",
+      "short_name": "Mobile OS",
+      "description": "Open Flashlight, Call, WhatsApp & Phone Controls",
+      "url": "/?action=mobile",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Biometric Face Lock",
+      "short_name": "Face Lock",
+      "description": "Scan 3D Face ID or lock screen",
+      "url": "/?action=facelock",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Store Package & APK",
+      "short_name": "Store APK",
+      "description": "Package Mahi AI for Google Play Store & APK",
+      "url": "/?action=store",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

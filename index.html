@@ -7,18 +7,41 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Mahi AI" />
+    <meta name="apple-mobile-web-app-title" content="Mahi Ai" />
+    <meta name="application-name" content="Mahi Ai" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <title>Mahi AI Assistant</title>
+    <link rel="manifest" href="/manifest.json" />
+    <title>Mahi Ai</title>
     <meta name="description" content="Real-time, voice-to-voice AI girlfriend assistant with a witty, confident, sassy, and loving persona powered by Gemini Live API." />
-    <meta property="og:title" content="Mahi AI Assistant" />
+    <meta property="og:title" content="Mahi Ai" />
     <meta property="og:description" content="Real-time, voice-to-voice AI girlfriend assistant with a witty, confident, sassy, and loving persona powered by Gemini Live API." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        if ('caches' in window) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (key) {
+              if (key.indexOf('v6') === -1) {
+                caches.delete(key);
+              }
+            });
+          }).catch(function () {});
+        }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) {
+              reg.update().catch(function () {});
+            });
+          }).catch(function () {});
+        }
+      })();
+    </script>
+    <script src="/registerSW.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

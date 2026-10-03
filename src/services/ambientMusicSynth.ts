@@ -98,6 +98,10 @@ export class AmbientMusicSynth {
     }, 850);
   }
 
+  public stop(): void {
+    this.pause();
+  }
+
   public toggle(): boolean {
     if (this.isPlaying) {
       this.pause();

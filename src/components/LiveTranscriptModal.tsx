@@ -28,7 +28,16 @@ export const LiveTranscriptModal: React.FC<LiveTranscriptModalProps> = ({
 
   const handleCopy = () => {
     const text = transcripts
-      .map((t) => `[${new Date(t.timestamp).toLocaleTimeString()}] ${t.sender === 'mahi' ? 'Mahi ❤️' : 'You'}: ${t.text}`)
+      .map(
+        (t) =>
+          `[${new Date(t.timestamp).toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          })} IST] ${t.sender === 'mahi' ? 'Riya ❤️' : 'You'}: ${t.text}`
+      )
       .join('\n');
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -124,8 +133,16 @@ export const LiveTranscriptModal: React.FC<LiveTranscriptModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between text-[9px] font-bold text-white/40 mb-1">
-                      <span>{isMahi ? 'Mahi ❤️' : 'Aap (You)'}</span>
-                      <span>{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>{isMahi ? 'Riya ❤️' : 'Aap (You)'}</span>
+                      <span>
+                        {new Date(entry.timestamp).toLocaleTimeString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}{' '}
+                        IST
+                      </span>
                     </div>
                     <p className="font-medium whitespace-pre-wrap">{entry.text}</p>
                   </div>

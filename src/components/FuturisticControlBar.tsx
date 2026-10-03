@@ -1,5 +1,16 @@
 import React from 'react';
-import { Eye, MessageSquare, Music, Sparkles, Bell, Camera, Smartphone } from 'lucide-react';
+import {
+  Eye,
+  MessageSquare,
+  Music,
+  Sparkles,
+  Bell,
+  Camera,
+  Smartphone,
+  Terminal,
+  Layers,
+  Activity,
+} from 'lucide-react';
 
 interface FuturisticControlBarProps {
   onOpenVision: () => void;
@@ -13,6 +24,9 @@ interface FuturisticControlBarProps {
   isMusicPlaying: boolean;
   onOpenMobileControl: () => void;
   isTorchActive?: boolean;
+  onOpenCyberCoding?: () => void;
+  onOpenAccessibility?: () => void;
+  onToggleAppHeads?: () => void;
 }
 
 export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
@@ -27,6 +41,9 @@ export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
   isMusicPlaying,
   onOpenMobileControl,
   isTorchActive = false,
+  onOpenCyberCoding,
+  onOpenAccessibility,
+  onToggleAppHeads,
 }) => {
   return (
     <div className="w-full max-w-md mx-auto px-2 mb-2">
@@ -48,6 +65,23 @@ export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
           </div>
           <span className="text-[9px] font-extrabold tracking-tight text-emerald-300">Mobile</span>
         </button>
+
+        {/* 1b. Coding & Ethical Hacking Lab */}
+        {onOpenCyberCoding && (
+          <button
+            type="button"
+            onClick={onOpenCyberCoding}
+            title="Coding Studio & Ethical Hacking Cyber Lab"
+            className="flex flex-col items-center gap-1 p-1.5 rounded-xl hover:bg-emerald-500/20 text-white/85 hover:text-emerald-300 transition-all group cursor-pointer"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/35 text-emerald-400">
+              <Terminal className="w-4 h-4" />
+            </div>
+            <span className="text-[9px] font-extrabold tracking-tight text-emerald-300">
+              Code/Hack
+            </span>
+          </button>
+        )}
 
         {/* 2. AI Vision (Camera) */}
         <button
@@ -140,6 +174,40 @@ export const FuturisticControlBar: React.FC<FuturisticControlBarProps> = ({
           </div>
           <span className="text-[9px] font-bold tracking-tight">Memories</span>
         </button>
+
+        {/* 7. Accessibility Suite */}
+        {onOpenAccessibility && (
+          <button
+            type="button"
+            onClick={onOpenAccessibility}
+            title="Accessibility & Spoken Screen Reader Hub"
+            className="flex flex-col items-center gap-1 p-1.5 rounded-xl hover:bg-cyan-500/20 text-white/85 hover:text-cyan-300 transition-all group cursor-pointer"
+          >
+            <div className="p-1.5 rounded-lg bg-cyan-500/20 group-hover:bg-cyan-500/35 text-cyan-400">
+              <Activity className="w-4 h-4" />
+            </div>
+            <span className="text-[9px] font-extrabold tracking-tight text-cyan-300">
+              Access
+            </span>
+          </button>
+        )}
+
+        {/* 8. App Heads Floating Bubble Toggle */}
+        {onToggleAppHeads && (
+          <button
+            type="button"
+            onClick={onToggleAppHeads}
+            title="Toggle Floating App Heads Bubble"
+            className="flex flex-col items-center gap-1 p-1.5 rounded-xl hover:bg-rose-500/20 text-white/85 hover:text-rose-300 transition-all group cursor-pointer"
+          >
+            <div className="p-1.5 rounded-lg bg-rose-500/20 group-hover:bg-rose-500/35 text-rose-400">
+              <Layers className="w-4 h-4" />
+            </div>
+            <span className="text-[9px] font-extrabold tracking-tight text-rose-300">
+              Heads
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

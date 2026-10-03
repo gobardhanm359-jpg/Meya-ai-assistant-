@@ -131,7 +131,11 @@ export const PhotoMemoriesModal: React.FC<PhotoMemoriesModalProps> = ({
                 <div className="flex items-center justify-between text-[9px] font-medium text-neutral-400 mt-2">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-2.5 h-2.5" />
-                    {new Date(mem.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    {new Date(mem.timestamp).toLocaleDateString('en-IN', {
+                      timeZone: 'Asia/Kolkata',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
                   </span>
                   <button
                     type="button"

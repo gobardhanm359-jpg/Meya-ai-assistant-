@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { registerSW } from 'virtual:pwa-register';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -11,7 +10,6 @@ let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
 let globalOfflineReady = false;
 let globalNeedRefresh = false;
 let globalSwRegistered = false;
-let updateSWFn: ((reloadPage?: boolean) => Promise<void>) | null = null;
 const pwaListeners = new Set<() => void>();
 
 function notifyPWAListeners() {
@@ -32,26 +30,48 @@ if (typeof window !== 'undefined') {
     notifyPWAListeners();
   });
 
-  // Register PWA Service Worker via virtual:pwa-register
-  try {
-    updateSWFn = registerSW({
-      immediate: true,
-      onRegisteredSW() {
-        globalSwRegistered = true;
-        notifyPWAListeners();
-      },
-      onOfflineReady() {
+  // Clean up any stale workbox-precache or older v1-v4 caches and register /sw.js immediately
+  if ('serviceWorker' in navigator) {
+    const registerMahiServiceWorker = async () => {
+      try {
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          for (const key of cacheKeys) {
+            if (
+              key.includes('workbox-precache') ||
+              (key.startsWith('mahi-ai-') && !key.endsWith('-v5'))
+            ) {
+              await caches.delete(key);
+            }
+          }
+        }
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        globalSwRegistered = Boolean(reg);
         globalOfflineReady = true;
-        globalSwRegistered = true;
         notifyPWAListeners();
-      },
-      onNeedRefresh() {
-        globalNeedRefresh = true;
-        notifyPWAListeners();
-      },
-    });
-  } catch (err) {
-    console.warn('[PWA] Service worker registration info:', err);
+
+        reg.update().catch(() => {});
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              globalNeedRefresh = true;
+              notifyPWAListeners();
+            }
+          });
+        });
+      } catch (err) {
+        console.warn('[PWA] Service worker registration info:', err);
+      }
+    };
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      registerMahiServiceWorker();
+    } else {
+      window.addEventListener('DOMContentLoaded', registerMahiServiceWorker);
+    }
   }
 }
 
@@ -112,11 +132,51 @@ export function usePWAInstall() {
   };
 
   const refreshApp = async () => {
-    if (updateSWFn) {
-      await updateSWFn(true);
-    } else {
-      window.location.reload();
-    }
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(
+          keys
+            .filter((k) => !k.endsWith('-v5'))
+            .map((k) => caches.delete(k))
+        );
+      }
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      }
+    } catch (_) {}
+    window.location.reload();
+  };
+
+  const forceUpdateApp = async (): Promise<string> => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const k of keys) {
+          if (!k.endsWith('-v5')) {
+            await caches.delete(k);
+          }
+        }
+      }
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      }
+      globalNeedRefresh = false;
+      notifyPWAListeners();
+    } catch (_) {}
+    return '✅ Mahi Ai Updated to Latest Version v5.0 (24h ON + Sentiment Engine + India IST)';
   };
 
   const dismissOfflineReady = () => {
@@ -126,6 +186,7 @@ export function usePWAInstall() {
 
   return {
     isInstallable: !!deferredPrompt,
+    canInstall: !!deferredPrompt,
     isInstalled,
     isIOS,
     isAndroid,
@@ -133,7 +194,9 @@ export function usePWAInstall() {
     needRefresh,
     swRegistered,
     install,
+    triggerInstall: install,
     refreshApp,
+    forceUpdateApp,
     dismissOfflineReady,
   };
 }

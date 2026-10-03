@@ -32,7 +32,7 @@ export const ActionHud: React.FC<ActionHudProps> = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-rose-300">
-                  Mahi&apos;s Love Confession
+                  Riya&apos;s Love Confession
                 </span>
                 <span className="text-[10px] text-rose-200/60 font-mono">
                   {loveEvent.intensity}%

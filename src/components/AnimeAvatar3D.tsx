@@ -17,6 +17,7 @@ interface AnimeAvatar3DProps {
   onCoreClick: () => void;
   onHeartBurst: () => void;
   isHologramActive?: boolean;
+  externalActionCommand?: { action: string; timestamp: number } | null;
 }
 
 export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
@@ -30,6 +31,7 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
   onCoreClick,
   onHeartBurst,
   isHologramActive = false,
+  externalActionCommand = null,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [avatarRenderMode, setAvatarRenderMode] = useState<'3d-model' | 'live-portrait'>('live-portrait');
@@ -1077,6 +1079,22 @@ export const AnimeAvatar3D: React.FC<AnimeAvatar3DProps> = ({
       setCurrentAction('normal');
     }, 3500);
   };
+
+  useEffect(() => {
+    if (!externalActionCommand || !externalActionCommand.action) return;
+    const act = externalActionCommand.action.toLowerCase();
+    if (act === 'kiss' || act === 'wink') {
+      triggerCuteAction('kiss');
+    } else if (act === 'hot') {
+      triggerCuteAction('hot');
+    } else if (act === 'headpat') {
+      triggerCuteAction('headpat');
+    } else if (act === 'pout') {
+      triggerCuteAction('pout');
+    } else {
+      triggerCuteAction('cheer');
+    }
+  }, [externalActionCommand]);
 
   const cuteGirlsConfig: Record<CuteGirlStyle, { name: string; tag: string; emoji: string; badgeColor: string }> = {
     reference: { name: 'Mahi (Photo)', tag: 'Wavy Brunette Pout', emoji: '✨', badgeColor: 'from-rose-500 to-pink-500' },

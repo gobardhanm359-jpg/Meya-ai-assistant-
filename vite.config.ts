@@ -14,16 +14,20 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: '/',
-          name: 'Mahi AI Assistant - Voice Companion & Mobile Control',
-          short_name: 'Mahi AI',
-          description: 'Real-time voice-to-voice AI girlfriend assistant with smart mobile device control.',
+          name: 'Mahi Ai',
+          short_name: 'Mahi Ai',
+          description: 'Real-time voice-to-voice AI girlfriend assistant with smart mobile device control, 3D biometric face scan lock, and instant Hindi/Hinglish voice commands.',
+          lang: 'en-IN',
+          dir: 'ltr',
           theme_color: '#150510',
           background_color: '#150510',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
           orientation: 'portrait',
           start_url: '/',
           scope: '/',
-          categories: ['lifestyle', 'entertainment', 'utilities'],
+          categories: ['lifestyle', 'entertainment', 'utilities', 'productivity'],
+          prefer_related_applications: false,
           icons: [
             {
               src: '/pwa-192x192.png',
@@ -44,6 +48,22 @@ export default defineConfig(() => {
               purpose: 'maskable',
             },
           ],
+          screenshots: [
+            {
+              src: '/pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              form_factor: 'narrow',
+              label: 'Mahi AI 3D Companion & Mobile Control Center',
+            },
+            {
+              src: '/pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              form_factor: 'wide',
+              label: 'Mahi AI Biometric Face ID & Voice Command Studio',
+            },
+          ],
           shortcuts: [
             {
               name: 'Talk to Mahi AI',
@@ -60,17 +80,24 @@ export default defineConfig(() => {
               icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
             },
             {
-              name: 'Voice Auth Security',
-              short_name: 'Voice Auth',
-              description: 'Verify speaker voice or manage PIN/Pattern lock',
-              url: '/?action=security',
+              name: 'Biometric Face Lock',
+              short_name: 'Face Lock',
+              description: 'Scan 3D Face ID or lock screen',
+              url: '/?action=facelock',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Store Package & APK',
+              short_name: 'Store APK',
+              description: 'Package Mahi AI for Google Play Store & APK',
+              url: '/?action=store',
               icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
             },
           ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff,woff2}'],
-          navigateFallbackDenylist: [/^\/api\//, /^\/live-ws/],
+          navigateFallbackDenylist: [/^\/api\//, /^\/live-ws/, /^\/\.well-known\//, /^\/privacy-policy/],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -103,12 +130,13 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
           type: 'module',
         },
       }),
     ],
     resolve: {
+      dedupe: ['react', 'react-dom'],
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
